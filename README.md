@@ -1,2 +1,6 @@
-# Clustering_Similarity_Search
-Implementation for Vector Similarity Search and Clustering using LSH, IVFFlat and IVFPQ in C++
+# Clustering-and-Similarity-Search-Algorithms
+Implementation of Vector Similarity Search and Clustering algorithms.
+ Specifically:
+ - LSH
+ - IVFFlat
+ - IVFPQ in C++

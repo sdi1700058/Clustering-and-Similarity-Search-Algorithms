@@ -1,0 +1,15 @@
+Query_id: 0
+Neighbors: 0 
+Distances: 0 
+Time_ms: 10.5394
+----------------------------------------
+Query_id: 1
+Neighbors: 1 
+Distances: 0 
+Time_ms: 10.4951
+----------------------------------------
+Query_id: 2
+Neighbors: 2 
+Distances: 0 
+Time_ms: 10.1402
+----------------------------------------
