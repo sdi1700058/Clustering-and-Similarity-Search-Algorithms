@@ -1,15 +1,78 @@
-Query_id: 0
-Neighbors: 0 
-Distances: 0 
-Time_ms: 10.5394
+dummy
+Query: 0
+Nearest neighbor-1: 0
+distanceApproximate: 0.000000
+distanceTrue: 0.000000
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 5000.226367
+tTrueAverage: 5000.226367
 ----------------------------------------
-Query_id: 1
-Neighbors: 1 
-Distances: 0 
-Time_ms: 10.4951
+Query: 1
+Nearest neighbor-1: 1
+distanceApproximate: 0.000000
+distanceTrue: 0.000000
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 5000.221167
+tTrueAverage: 5000.221167
 ----------------------------------------
-Query_id: 2
-Neighbors: 2 
-Distances: 0 
-Time_ms: 10.1402
+Query: 2
+Nearest neighbor-1: 2
+distanceApproximate: 0.000000
+distanceTrue: 0.000000
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 5000.124721
+tTrueAverage: 5000.124721
+----------------------------------------
+Query: 3
+Nearest neighbor-1: 3
+distanceApproximate: 0.000000
+distanceTrue: 0.000000
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 5000.130441
+tTrueAverage: 5000.130441
+----------------------------------------
+Query: 4
+Nearest neighbor-1: 4
+distanceApproximate: 0.000000
+distanceTrue: 0.000000
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 5000.075600
+tTrueAverage: 5000.075600
+----------------------------------------
+Query: 5
+Nearest neighbor-1: 5
+distanceApproximate: 0.000000
+distanceTrue: 0.000000
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 5000.200409
+tTrueAverage: 5000.200409
+----------------------------------------
+Query: 6
+Nearest neighbor-1: 6
+distanceApproximate: 0.000000
+distanceTrue: 0.000000
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 5000.072031
+tTrueAverage: 5000.072031
 ----------------------------------------

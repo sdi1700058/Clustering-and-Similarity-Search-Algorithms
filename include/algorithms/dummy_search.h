@@ -16,7 +16,9 @@ private:
     std::vector<Vector> data;
 public:
     void build_index(const std::vector<Vector>& dataset) override;
-    SearchResult search(const Vector& query, const Params& params, int query_id) const override;
+    SearchResult search(const Vector& query, 
+                        const Params& params, 
+                        int query_id) const override;
 };
 
-#endif
+#endif // DUMMY_SEARCH_H

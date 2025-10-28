@@ -12,4 +12,4 @@ std::vector<SearchResult> run_parallel_search(
     const Params& params
 );
 
-#endif
+#endif // PARALLEL_RUNNER_H

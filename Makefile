@@ -1,27 +1,39 @@
-CXX = g++
-CXXFLAGS = -O2 -std=c++17 -pthread
-BINDIR = bin
-TARGET = $(BINDIR)/search
+CXX ?= g++
+CXXFLAGS ?= -O2 -std=c++17 -pthread
+CPPFLAGS ?=
+LDFLAGS ?=
+BINDIR ?= bin
+TARGET := $(BINDIR)/search
 
-SRC = $(wildcard src/*.cpp) \
-	$(wildcard src/utils/*.cpp) \
-	$(wildcard src/algorithms/*.cpp)
-OBJ = $(patsubst src/%.cpp,$(BINDIR)/%.o,$(SRC))
+SRC_DIRS := src src/utils src/algorithms src/common
+SOURCES := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.cpp))
+BUILD_DIR := $(BINDIR)/obj
+OBJECTS := $(patsubst src/%.cpp,$(BUILD_DIR)/%.o,$(SOURCES))
+DEPENDS := $(OBJECTS:.o=.d)
 
 all: $(TARGET)
 
 search: $(TARGET)
 	@ln -sf $(TARGET) $@
 
-$(TARGET): $(OBJ)
+$(TARGET): $(OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-$(BINDIR)/%.o: src/%.cpp
+$(BUILD_DIR)/%.o: src/%.cpp
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
+
+-include $(DEPENDS)
+
+.PHONY: clean all search run format
+
+run: $(TARGET)
+	$(TARGET) $(RUN_ARGS)
+
+format:
+	clang-format -i $(SOURCES)
 
 clean:
-	rm -f $(OBJ) $(TARGET) search
-	rm -rf $(BINDIR)
-.PHONY: clean all search
+	rm -f $(TARGET) search
+	rm -rf $(BUILD_DIR)

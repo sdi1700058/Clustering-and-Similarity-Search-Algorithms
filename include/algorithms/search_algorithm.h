@@ -26,7 +26,7 @@ struct SearchResult {
 // Parameters for search algorithms
 struct Params {
     int N = 5;
-    int R = 100;
+    double R = 100.0;
 };
 
 // Abstract base class for search algorithms
@@ -37,4 +37,4 @@ public:
     virtual ~SearchAlgorithm() {}
 };
 
-#endif
+#endif // SEARCH_ALGORITHM_H

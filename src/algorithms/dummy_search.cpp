@@ -23,11 +23,14 @@ SearchResult DummySearch::search(const Vector& query, const Params& params, int 
     res.neighbor_ids.push_back(query_id);
     res.distances.push_back(0.0f);
 
-    // Simulate small processing time
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // Print start and end to check parallel execution
+    std::cout << "[DummySearch] Search started for query_id: " << query_id << "\n";
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+    std::cout << "[DummySearch] Search ended for query_id: " << query_id << "\n";
 
     auto end = std::chrono::high_resolution_clock::now();
     res.time_ms = std::chrono::duration<double, std::milli>(end - start).count();
+
 
     return res;
 }
