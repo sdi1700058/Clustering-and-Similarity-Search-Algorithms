@@ -20,13 +20,11 @@ void write_results(const std::vector<SearchResult>& results, const std::string& 
             // Placeholder: distanceTrue is populated by brute force results during evaluation phase
             out << "distanceTrue: " << r.distances[i] << "\n";
         }
-        out << "R-near neighbors:\n";
         if (!r.range_neighbor_ids.empty()) {
+            out << "R-near neighbors:\n";
             for (size_t idx = 0; idx < r.range_neighbor_ids.size(); ++idx) {
                 out << r.range_neighbor_ids[idx] << " (dist=" << r.range_distances[idx] << ")\n";
             }
-        } else {
-            out << "-\n";
         }
         out << "\n";
         out << "----------------------------------------\n";

@@ -20,7 +20,7 @@ struct LSHParams {
 
 class LSHSearch : public SearchAlgorithm {
 private:
-    std::vector<Vector> data;
+    std::vector<Vector> dataset_;
     LSHParams p;
     struct HashFunction {
         std::vector<double> a;
@@ -32,7 +32,7 @@ private:
     };
     mutable std::mt19937 rng{1};
     std::vector<HashTable> tables;
-    int dim = 0;
+    int space_dim_ = 0;
     double default_w = 4.0;
     std::uint64_t hash_combine(const std::vector<int>& hvals) const;
     std::vector<int> compute_hashes(const HashTable& table, const Vector& v) const;

@@ -57,14 +57,14 @@ void LSHSearch::build_tables() {
     for (auto& table : tables) {
         table.g.resize(p.k);
         for (auto& fn : table.g) {
-            fn.a.resize(dim);
-            for (int d = 0; d < dim; ++d) fn.a[d] = dist_a(rng);
+            fn.a.resize(space_dim_);
+            for (int d = 0; d < space_dim_; ++d) fn.a[d] = dist_a(rng);
             fn.b = dist_b(rng);
         }
     }
 
-    for (int idx = 0; idx < static_cast<int>(data.size()); ++idx) {
-        const auto& vec = data[idx];
+    for (int idx = 0; idx < static_cast<int>(dataset_.size()); ++idx) {
+        const auto& vec = dataset_[idx];
         for (auto& table : tables) {
             auto key = compute_key(table, vec);
             table.buckets[key].push_back(idx);
@@ -83,63 +83,70 @@ void LSHSearch::configure(const Args& args) {
 }
 
 void LSHSearch::build_index(const std::vector<Vector>& dataset) {
-    data = dataset;
-    dim = data.empty() ? 0 : static_cast<int>(data.front().values.size());
-    if (dim == 0) {
-        std::cout << "[LSH] Empty dataset; nothing to index\n";
+    dataset_ = dataset;
+    space_dim_ = dataset_.empty() ? 0 : static_cast<int>(dataset_.front().values.size());
+
+    if (dataset_.empty()) {
+        std::cout << "[LSH] dataset is empty, index cleared\n";
         return;
+    }
+    if (space_dim_ == 0) {
+        throw std::runtime_error("[LSH] dataset vectors have zero dimension");
     }
     if (p.L <= 0 || p.k <= 0) {
         throw std::runtime_error("[LSH] Invalid parameters: L and k must be positive");
     }
     build_tables();
-    std::cout << "[LSH] Built " << p.L << " hash tables for " << data.size() << " vectors (dim=" << dim << ")\n";
+    std::cout << "[LSH] Built " << p.L << " hash tables for " << dataset_.size() << " vectors (space_dim_=" << space_dim_ << ")\n";
 }
 
 SearchResult LSHSearch::search(const Vector& query, const Params& params, int query_id) const {
     auto t0 = high_resolution_clock::now();
-    SearchResult result; result.query_id = query_id;
-    if (data.empty()) return result;
+    SearchResult res; 
+    res.query_id = query_id;
+    
+    if (dataset_.empty()) return res;
 
-    std::unordered_set<int> candidates;
+    std::unordered_set<int> candidates_ids;
+
     for (const auto& table : tables) {
         auto key = compute_key(table, query);
         auto it = table.buckets.find(key);
         if (it != table.buckets.end()) {
-            for (int idx : it->second) candidates.insert(idx);
+            for (int idx : it->second) candidates_ids.insert(idx);
         }
     }
 
-    if (candidates.empty()) {
-        for (size_t i = 0; i < data.size(); ++i) candidates.insert(static_cast<int>(i));
+    if (candidates_ids.empty()) {
+        for (size_t i = 0; i < dataset_.size(); ++i) candidates_ids.insert(static_cast<int>(i));
     }
 
     struct Candidate { int idx; double dist; };
-    std::vector<Candidate> scored;
-    scored.reserve(candidates.size());
-    for (int idx : candidates) {
-        double dist = metrics::distance(data[idx].values, query.values, metrics::GLOBAL_METRIC_CFG);
-        scored.push_back({idx, dist});
+    std::vector<Candidate> b;
+    b.reserve(candidates_ids.size());
+    for (int idx : candidates_ids) {
+        double dist = metrics::distance(dataset_[idx].values, query.values, metrics::GLOBAL_METRIC_CFG);
+        b.push_back({idx, dist});
     }
-    std::sort(scored.begin(), scored.end(), [](const Candidate& a, const Candidate& b){ return a.dist < b.dist; });
+    std::sort(b.begin(), b.end(), [](const Candidate& a, const Candidate& b){ return a.dist < b.dist; });
 
-    int topK = std::min(params.N, static_cast<int>(scored.size()));
+    int topK = std::min(params.N, static_cast<int>(b.size()));
     topK = std::max(topK, 0);
     for (int i = 0; i < topK; ++i) {
-        result.neighbor_ids.push_back(scored[i].idx);
-        result.distances.push_back(static_cast<float>(scored[i].dist));
+        res.neighbor_ids.push_back(b[i].idx);
+        res.distances.push_back(static_cast<float>(b[i].dist));
     }
 
     if (params.enable_range && params.R > 0.0) {
-        for (const auto& cand : scored) {
+        for (const auto& cand : b) {
             if (cand.dist <= params.R) {
-                result.range_neighbor_ids.push_back(cand.idx);
-                result.range_distances.push_back(static_cast<float>(cand.dist));
+                res.range_neighbor_ids.push_back(cand.idx);
+                res.range_distances.push_back(static_cast<float>(cand.dist));
             }
         }
     }
 
     auto t1 = high_resolution_clock::now();
-    result.time_ms = duration<double, std::milli>(t1 - t0).count();
-    return result;
+    res.time_ms = duration<double, std::milli>(t1 - t0).count();
+    return res;
 }
