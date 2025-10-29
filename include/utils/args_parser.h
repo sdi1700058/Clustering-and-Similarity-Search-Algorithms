@@ -7,34 +7,43 @@
     
     Add new arguments as needed, please document them here.
     Current Arguments:
-        --dataset_path : Path to the dataset file
-        --query_path   : Path to the query file
-        --output_path  : Path to the output file
-        --type         : Type of data (sift or mnist)
-        --algo         : Algorithm to use (default: dummy)
-        --threads      : Number of threads to use
-        --N            : Number of neighbors to search for
-        --R            : Search radius
-        --interactive  : Whether to run in interactive mode
-
+        - Dataset Path (-d): Path to the dataset file.
+        - Query Path (-q): Path to the query file.
+        - Output Path (-o): Path to save the results.
+        - Dataset Type (-type): Type of dataset (demo/mnist/sift).
+        - Algorithm (-algo): Algorithm to use (brute/dummy).
+        - Distance Metric (-metric): Distance metric to use (l1/l2).
+        - Threads (-threads): Number of threads for parallel execution.
+        - N (-N): Number of nearest neighbors to search for.
+        - R (-R): Search radius for range queries.
     Currently Implemented Algorithms:
-        - Dummy Search Algorithm
+        - Brute-Force Search Algorithm (used as ground truth)
+        - Dummy Search Algorithm (check parallel execution)
+    Currently Implemented Distance Metrics:
+        - L1 (Manhattan) Distance
+        - L2 (Euclidean) Distance
 */
 
+#pragma once
 #include <string>
 #include <unordered_map>
+#include <iostream>
 
 struct Args {
-    std::string dataset_path;
-    std::string query_path;
-    std::string output_path;
-    std::string algo = "brute";
-    std::string type = "mnist";
-    std::string metric = "l1";  // NEW
-    int threads = 6;
-    int N = 1;
-    double R = 0.0;
+    std::string dataset_path, query_path, output_path;
+    std::string type, algo, metric;
+    int threads, N;
+    double R;
+    bool range = true;
     bool interactive = true;
+
+    // Algorithm-specific params
+    int seed = 1;
+    int k = 4, L = 5;             // LSH
+    double w = 4.0;
+    int kproj = 14, M = 10, probes = 2; // Hypercube
+    int kclusters = 50, nprobe = 5;     // IVFFlat / IVFPQ
+    int pq_M = 16, pq_nbits = 8;        // IVFPQ
 };
 
 Args parse_args(int argc, char** argv);

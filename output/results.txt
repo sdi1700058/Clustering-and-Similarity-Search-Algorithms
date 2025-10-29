@@ -1,4 +1,4 @@
-dummy
+brute
 Query: 0
 Nearest neighbor-1: 0
 distanceApproximate: 0.000000
@@ -7,8 +7,8 @@ R-near neighbors:
 Average AF: 1.0
 Recall@N: 1.0
 QPS: 0.0
-tApproximateAverage: 5000.226367
-tTrueAverage: 5000.226367
+tApproximateAverage: 0.118328
+tTrueAverage: 0.118328
 ----------------------------------------
 Query: 1
 Nearest neighbor-1: 1
@@ -18,43 +18,10 @@ R-near neighbors:
 Average AF: 1.0
 Recall@N: 1.0
 QPS: 0.0
-tApproximateAverage: 5000.221167
-tTrueAverage: 5000.221167
+tApproximateAverage: 0.080716
+tTrueAverage: 0.080716
 ----------------------------------------
 Query: 2
-Nearest neighbor-1: 2
-distanceApproximate: 0.000000
-distanceTrue: 0.000000
-R-near neighbors:
-Average AF: 1.0
-Recall@N: 1.0
-QPS: 0.0
-tApproximateAverage: 5000.124721
-tTrueAverage: 5000.124721
-----------------------------------------
-Query: 3
-Nearest neighbor-1: 3
-distanceApproximate: 0.000000
-distanceTrue: 0.000000
-R-near neighbors:
-Average AF: 1.0
-Recall@N: 1.0
-QPS: 0.0
-tApproximateAverage: 5000.130441
-tTrueAverage: 5000.130441
-----------------------------------------
-Query: 4
-Nearest neighbor-1: 4
-distanceApproximate: 0.000000
-distanceTrue: 0.000000
-R-near neighbors:
-Average AF: 1.0
-Recall@N: 1.0
-QPS: 0.0
-tApproximateAverage: 5000.075600
-tTrueAverage: 5000.075600
-----------------------------------------
-Query: 5
 Nearest neighbor-1: 5
 distanceApproximate: 0.000000
 distanceTrue: 0.000000
@@ -62,8 +29,41 @@ R-near neighbors:
 Average AF: 1.0
 Recall@N: 1.0
 QPS: 0.0
-tApproximateAverage: 5000.200409
-tTrueAverage: 5000.200409
+tApproximateAverage: 0.000450
+tTrueAverage: 0.000450
+----------------------------------------
+Query: 3
+Nearest neighbor-1: 0
+distanceApproximate: 1.414214
+distanceTrue: 1.414214
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 0.000300
+tTrueAverage: 0.000300
+----------------------------------------
+Query: 4
+Nearest neighbor-1: 2
+distanceApproximate: 0.000000
+distanceTrue: 0.000000
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 0.000310
+tTrueAverage: 0.000310
+----------------------------------------
+Query: 5
+Nearest neighbor-1: 1
+distanceApproximate: 1.414214
+distanceTrue: 1.414214
+R-near neighbors:
+Average AF: 1.0
+Recall@N: 1.0
+QPS: 0.0
+tApproximateAverage: 0.000290
+tTrueAverage: 0.000290
 ----------------------------------------
 Query: 6
 Nearest neighbor-1: 6
@@ -73,6 +73,6 @@ R-near neighbors:
 Average AF: 1.0
 Recall@N: 1.0
 QPS: 0.0
-tApproximateAverage: 5000.072031
-tTrueAverage: 5000.072031
+tApproximateAverage: 0.000320
+tTrueAverage: 0.000320
 ----------------------------------------

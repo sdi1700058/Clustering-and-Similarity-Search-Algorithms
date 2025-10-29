@@ -4,11 +4,13 @@
 #include <string>
 #include <memory>
 #include <filesystem>
+#include <chrono>
 
 #include "../include/utils/args_parser.h"
 #include "../include/algorithms/brute_force_search.h"
 #include "../include/algorithms/dummy_search.h"
 #include "../include/algorithms/search_algorithm.h"
+#include "../include/utils/algorithm_factory.h"
 #include "../include/utils/parallel_runner.h"
 #include "../include/utils/data_loader.h"
 #include "../include/utils/result_writer.h"
@@ -31,56 +33,64 @@
 */
 
 int main(int argc, char** argv) {
-    std::cout << "=== ANN Search Framework ===\n";
-
-    // Parse CLI arguments
+    std::cout << "=== ANN Framework ===\n";
     Args args = parse_args(argc, argv);
-    Params params{args.N, args.R};
 
-    // Metric configuration
-    metrics::MetricConfig metric_cfg = metrics::parse_metric_type(args.metric);
-    BruteForceSearch::set_metric_config(metric_cfg);
+    // Set metric globally
+    auto mcfg = metrics::parse_metric_type(args.metric);
+    metrics::set_global_config(mcfg);
 
-    // Load dataset & queries
-    auto dataset = load_vectors(args.dataset_path);
-    auto queries = load_vectors(args.query_path);
-
-    // Select algorithm
-    std::unique_ptr<SearchAlgorithm> algo;
-    if (args.algo == "dummy") {
-        algo = std::make_unique<DummySearch>();
-    } else if (args.algo == "brute") {
-        algo = std::make_unique<BruteForceSearch>();
-    } else {
-        std::cerr << "[ERROR] Unknown algorithm: " << args.algo << "\n";
+    // Load dataset and queries
+    std::vector<Vector> dataset;
+    std::vector<Vector> queries;
+    try {
+        dataset = data_loader::load_dataset(args.dataset_path, args.type);
+        queries = data_loader::load_queries(args.query_path, args.type);
+    } catch (const std::exception& e) {
+        std::cerr << "[Main] Error loading data: " << e.what() << "\n";
         return 1;
     }
 
-    // Build index
-    algo->build_index(dataset);
+    Params params; params.N = args.N; params.R = args.R; params.enable_range = args.range;
 
-    // Run parallel search
-    auto start_time = std::chrono::high_resolution_clock::now();
-    auto results = run_parallel_search(algo.get(), queries, args.threads, params);
-    auto end_time = std::chrono::high_resolution_clock::now();
-    double total_time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+    // Create approx algorithm and configure
+    auto approx = create_algorithm(args.algo);
+    approx->configure(args);
+    approx->build_index(dataset);
 
-    // Optional: compute “ground truth” using brute-force (for evaluation/demo)
-    auto truth_algo = std::make_unique<BruteForceSearch>();
-    truth_algo->build_index(dataset);
-    auto truth_results = run_parallel_search(truth_algo.get(), queries, args.threads, params);
+    // Create ground truth and configure (brute)
+    //auto truth = std::make_unique<BruteForceSearch>();
+    //truth->configure(args);
+    //truth->build_index(dataset);
 
+    // Run Ground Truth (brute)
+    //std::cout << "[Main] Running truth (BruteForce) ...\n";
+    //auto t0 = std::chrono::high_resolution_clock::now();
+    //auto truth_results = run_parallel_search(truth.get(), queries, args.threads, params);
+    //auto t1 = std::chrono::high_resolution_clock::now();
+    //double truth_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+    // Run Given Algorithm (approx)
+    std::cout << "[Main] Running approx (" << args.algo << ") ...\n";
+    auto ta0 = std::chrono::high_resolution_clock::now();
+    auto approx_results = run_parallel_search(approx.get(), queries, args.threads, params);
+    auto ta1 = std::chrono::high_resolution_clock::now();
+    double approx_time_ms = std::chrono::duration<double, std::milli>(ta1 - ta0).count();
+    std::cout << "[Main] Approx search completed in " << approx_time_ms << " ms\n";
     // Evaluate
-    EvalResults eval = evaluate_results(results, truth_results, params.N, total_time_ms);
-    std::cout << "[Main] Total search time: " << total_time_ms << " ms\n";
-    // Write output
-    write_results(results, args.output_path, args.algo);
-    // Prints Results to console
-    std::cout << "=== Output ===\n";
-    std::ifstream result_file(args.output_path);
-    std::cout << result_file.rdbuf();
-    std::cout << "=== End of Output ===\n";
+    //auto eval = evaluate_results(approx_results, truth_results, args.N, approx_time_ms, truth_time_ms);
 
-    std::cout << "\n[Done] All queries processed successfully.\n";
+    // Write approx results
+    write_results(approx_results, args.output_path, approx->name());
+
+    // Summary output
+    /*std::cout << "[Summary] Method=" << approx->name()
+              << " AF=" << eval.average_AF
+              << " Recall@" << args.N << "=" << eval.recall_at_N
+              << " QPS=" << eval.qps << "\n"
+              << " tApproxAvg=" << eval.tApproxAvg << "ms"
+              << " tTrueAvg=" << eval.tTrueAvg << "ms\n";
+              */
+
     return 0;
 }

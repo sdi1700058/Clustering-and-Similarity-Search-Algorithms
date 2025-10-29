@@ -4,9 +4,24 @@
 #include "../../include/algorithms/dummy_search.h"
 
 /*
-!PLACEHOLDER IMPLEMENTATION OF A DUMMY SEARCH ALGORITHM!
 This serves basically as a test to check if the main program
-and the overall structure is working fine (builds and runs successfully).
+and the overall structure is working fine (builds and runs successfully)
+and checks that threads are actually working by showing in the output that queries start and end
+at the same time.
+Example of correct output for 2 threads: 
+[DummySearch] Search started for query_id: 0
+[DummySearch] Search started for query_id: 1
+    ** After 5 Seconds **
+[DummySearch] Search ended for query_id: 0
+[DummySearch] Search ended for query_id: 1
+[DummySearch] Search started for query_id: 2
+[DummySearch] Search started for query_id: 3
+    ** After 5 Seconds **
+[DummySearch] Search ended for query_id: 2
+[DummySearch] Search ended for query_id: 3
+            .
+            .
+            .
 */
 
 void DummySearch::build_index(const std::vector<Vector>& dataset) {
@@ -15,6 +30,8 @@ void DummySearch::build_index(const std::vector<Vector>& dataset) {
 }
 
 SearchResult DummySearch::search(const Vector& query, const Params& params, int query_id) const {
+    (void)query;
+    (void)params;
     auto start = std::chrono::high_resolution_clock::now();
 
     //Just return the query as its own neighbor

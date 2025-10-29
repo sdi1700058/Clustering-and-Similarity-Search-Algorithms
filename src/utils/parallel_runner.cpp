@@ -5,7 +5,7 @@
 #include "../../include/utils/parallel_runner.h"
 
 std::vector<SearchResult> run_parallel_search(
-    SearchAlgorithm* algo,
+    const SearchAlgorithm* algo,
     const std::vector<Vector>& queries,
     int num_threads,
     const Params& params

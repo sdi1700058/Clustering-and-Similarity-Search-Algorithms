@@ -4,23 +4,19 @@
 #include <vector>
 #include <cmath>
 #include <string>
+#include <stdexcept>
 
 namespace metrics {
+    enum class MetricType { L1, L2 };
+    struct MetricConfig { MetricType type = MetricType::L2; };
 
-enum class MetricType {
-    L1,  // Manhattan
-    L2   // Euclidean
-};
+    extern MetricConfig GLOBAL_METRIC_CFG;
 
-struct MetricConfig {
-    MetricType type = MetricType::L2;
-};
-
-double manhattan(const std::vector<float>& a, const std::vector<float>& b);
-double euclidean(const std::vector<float>& a, const std::vector<float>& b);
-double distance(const std::vector<float>& a, const std::vector<float>& b, const MetricConfig& cfg);
-MetricConfig parse_metric_type(const std::string& name);
-
-} // namespace metrics
+    double manhattan(const std::vector<double>& a, const std::vector<double>& b);
+    double euclidean(const std::vector<double>& a, const std::vector<double>& b);
+    double distance(const std::vector<double>& a, const std::vector<double>& b, const MetricConfig& cfg);
+    MetricConfig parse_metric_type(const std::string& name);
+    void set_global_config(const MetricConfig& cfg);
+}
 
 #endif // METRICS_H

@@ -18,7 +18,7 @@ echo "=== Demo: MNIST Loader Test ==="
 ./bin/search -d data/mnist/train/train-images.idx3-ubyte \
           -q data/mnist/query-test/t10k-images.idx3-ubyte \
           -o output/demo_mnist.txt \
-          -algo brute -metric l2 -threads 6 -type mnist
+          -algo brute -metric l1 -threads 6 -type mnist
 echo ""
 echo "=== Output ==="
 cat output/demo_mnist.txt
@@ -32,4 +32,15 @@ echo "=== Demo: SIFT Loader Test ==="
 echo ""
 echo "=== Output ==="
 cat output/demo_sift.txt
+echo "=== End of Demo ==="
+
+echo "=== Demo: Hypercube Search ==="
+./bin/search -d data/mnist/train/train-images.idx3-ubyte \
+          -q data/mnist/query-test/t10k-images.idx3-ubyte \
+          -o output/demo_hypercube.txt \
+          -algo hypercube -metric l2 -threads 6 -type mnist \
+          -N 1 -R 2000 -kproj 14 -M 10 -probes 2 -w 4.0 -range true
+echo ""
+echo "=== Output ==="
+cat output/demo_hypercube.txt
 echo "=== End of Demo ==="

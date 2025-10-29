@@ -6,8 +6,7 @@
 
 #include "../algorithms/search_algorithm.h"
 
-void write_results(const std::vector<SearchResult>& results,
-                   const std::string& path,
+void write_results(const std::vector<SearchResult>& results, 
+                   const std::string& path, 
                    const std::string& method_name);
-                   
 #endif // RESULT_WRITER_H

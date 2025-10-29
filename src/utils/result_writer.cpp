@@ -1,32 +1,36 @@
 #include <fstream>
-#include <iomanip>
 #include <iostream>
+#include <iomanip>
+#include <filesystem>
 
 #include "../../include/utils/result_writer.h"
 
 void write_results(const std::vector<SearchResult>& results, const std::string& path, const std::string& method_name) {
+    std::filesystem::create_directories(std::filesystem::path(path).parent_path());
     std::ofstream out(path);
-    if (!out.is_open()) { std::cerr << "[Writer] ERROR: cannot open " << path << std::endl; return; }
-
+    if (!out.is_open()) { std::cerr << "[Writer] cannot open " << path << "\n"; return; }
     out << method_name << "\n";
     out << std::fixed << std::setprecision(6);
-
-    double total_time_approx = 0.0;
     for (const auto &r : results) {
         out << "Query: " << r.query_id << "\n";
-        for (size_t i = 0; i < r.neighbor_ids.size(); ++i) {
+        int K = (int)r.neighbor_ids.size();
+        for (int i=0;i<K;++i) {
             out << "Nearest neighbor-" << (i+1) << ": " << r.neighbor_ids[i] << "\n";
             out << "distanceApproximate: " << r.distances[i] << "\n";
-            out << "distanceTrue: " << r.distances[i] << "\n"; // Since brute-force == true in this checkpoint
+            // Placeholder: distanceTrue is populated by brute force results during evaluation phase
+            out << "distanceTrue: " << r.distances[i] << "\n";
         }
-        out << "R-near neighbors:\n"; // empty in brute checkpoint (range not computed here)
-        out << "Average AF: 1.0\n";   // AF = approxDist / trueDist => 1.0 for brute
-        out << "Recall@N: 1.0\n";     // perfect recall for brute
-        out << "QPS: 0.0\n";          // filled later by benchmarking stage
-        out << "tApproximateAverage: " << r.time_ms << "\n";
-        out << "tTrueAverage: " << r.time_ms << "\n";
+        out << "R-near neighbors:\n";
+        if (!r.range_neighbor_ids.empty()) {
+            for (size_t idx = 0; idx < r.range_neighbor_ids.size(); ++idx) {
+                out << r.range_neighbor_ids[idx] << " (dist=" << r.range_distances[idx] << ")\n";
+            }
+        } else {
+            out << "-\n";
+        }
+        out << "\n";
         out << "----------------------------------------\n";
-        total_time_approx += r.time_ms;
+        /* Evaluation Metrics Are Written In Summary*/
     }
-    std::cout << "[Writer] Results written to " << path << " (method: " << method_name << ").\n";
+    std::cout << "[Writer] " << results.size() << " Results written to " << path << " (method: " << method_name << ").\n";
 }
