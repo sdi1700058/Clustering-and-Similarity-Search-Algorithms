@@ -42,7 +42,8 @@ Args parse_args(int argc, char** argv) {
                         get_or_prompt("-algo", "Enter algorithm (brute/dummy/lsh/hypercube/ivfflat/ivfpq)", "dummy");
     args.metric       = mp.count("-metric") ? mp["-metric"] : // distance METRIC
                         get_or_prompt("-metric", "Enter distance metric (l1/l2)", "l2");
-    args.threads      = mp.count("-threads") ? std::stoi(mp["-threads"]) : 4;
+    args.threads      = mp.count("-threads") ? std::stoi(mp["-threads"]) :
+                        std::stoi(get_or_prompt("-threads", "Enter number of threads", "1"));
     args.N            = mp.count("-N") ? std::stoi(mp["-N"]) : // NUMber of NEAREST neighbors
                         std::stoi(get_or_prompt("-N", "Enter number of nearest neighbors N", "1"));
     args.R            = mp.count("-R") ? std::stod(mp["-R"]) : // search Radius

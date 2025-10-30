@@ -40,7 +40,7 @@ run_hypercube_mnist: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/hypercube_mnist_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo hypercube -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist -threads 6
+	$(TARGET) -algo hypercube -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
 
 run_hypercube_sift: $(TARGET)
 	@mkdir -p output
@@ -51,7 +51,7 @@ run_hypercube_sift: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/hypercube_sift_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo hypercube -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift -threads 6
+	$(TARGET) -algo hypercube -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
 
 run_lsh_mnist: $(TARGET)
 	@mkdir -p output
@@ -62,7 +62,7 @@ run_lsh_mnist: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/lsh_mnist_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo lsh -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist -threads 6
+	$(TARGET) -algo lsh -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
 
 run_lsh_sift: $(TARGET)
 	@mkdir -p output
@@ -73,7 +73,7 @@ run_lsh_sift: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/lsh_sift_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo lsh -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift -threads 6
+	$(TARGET) -algo lsh -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
 
 run_ivfflat_mnist: $(TARGET)
 	@mkdir -p output
@@ -84,7 +84,7 @@ run_ivfflat_mnist: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/ivfflat_mnist_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo ivfflat -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist -threads 6
+	$(TARGET) -algo ivfflat -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
 
 run_ivfflat_sift: $(TARGET)
 	@mkdir -p output
@@ -95,7 +95,7 @@ run_ivfflat_sift: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/ivfflat_sift_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo ivfflat -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift -threads 6
+	$(TARGET) -algo ivfflat -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
 
 format:
 	clang-format -i $(SOURCES)

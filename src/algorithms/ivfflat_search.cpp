@@ -55,7 +55,10 @@ void IVFFlatSearch::build_index(const std::vector<Vector>& dataset) {
         // Step 1.c: Update the centroids
         update();
     }
-
+    assigned_centroid.clear();
+    IL.clear();
+    IL.resize(p.kclusters);
+    // 2. Build Inverted Lists
     for (int i = 0; i < n_points; i++) {
         // 2.Assign to nearest centroid
         assigned_centroid[i] = nearest_centroid(data[i]);
@@ -64,7 +67,7 @@ void IVFFlatSearch::build_index(const std::vector<Vector>& dataset) {
     }
 
     index_built = true;
-    std::cout << "[IVFFlat - placeholder] index built with " << data.size() << " vectors, k=" << p.kclusters << "\n";
+    std::cout << "[IVFFlat] index built with " << data.size() << " vectors, k=" << p.kclusters << "\n";
 }
 
 SearchResult IVFFlatSearch::search(const Vector& query, const Params& params, int query_id) const {
