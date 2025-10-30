@@ -94,7 +94,8 @@ Args parse_args(int argc, char** argv) {
     // Print the final configuration
     if (args.algo == "brute" || args.algo == "dummy") {
         // Config without algorithm-specific parameters
-        std::cout << "\n[INFO] Using configuration:\n"
+        std::ostringstream info;
+        info << "\n[INFO] Using configuration:\n"
                 << "  Dataset: " << args.dataset_path << "\n"
                 << "  Queries: " << args.query_path << "\n"
                 << "  Output: " << args.output_path << "\n"
@@ -103,8 +104,11 @@ Args parse_args(int argc, char** argv) {
                 << "  Metric: " << args.metric << "\n"
                 << "  Threads: " << args.threads << "\n"
                 << "  N=" << args.N << " R=" << args.R << " Range=" << (args.range ? "true" : "false") << "\n";
+        args.config_summary = info.str();  
+        std::cout << args.config_summary;  
     } else if (args.algo == "lsh") {
-        std::cout << "\n[INFO] Using configuration:\n"
+        std::ostringstream info;
+        info << "\n[INFO] Using configuration:\n"
                 << "  Dataset: " << args.dataset_path << "\n"
                 << "  Queries: " << args.query_path << "\n"
                 << "  Output: " << args.output_path << "\n"
@@ -115,7 +119,8 @@ Args parse_args(int argc, char** argv) {
                 << "  N=" << args.N << " R=" << args.R << " Range=" << (args.range ? "true" : "false") << "\n"
                 << "  Seed=" << args.seed << " k=" << args.k << " L=" << args.L << " w=" << args.w << "\n";
     } else if (args.algo == "hypercube") {
-        std::cout << "\n[INFO] Using configuration:\n"
+        std::ostringstream info;
+        info << "\n[INFO] Using configuration:\n"
                 << "  Dataset: " << args.dataset_path << "\n"
                 << "  Queries: " << args.query_path << "\n"
                 << "  Output: " << args.output_path << "\n"
@@ -126,8 +131,11 @@ Args parse_args(int argc, char** argv) {
                 << "  N=" << args.N << " R=" << args.R << " Range=" << (args.range ? "true" : "false") << "\n"
                 << "  Seed=" << args.seed << " kproj=" << args.kproj << " M=" << args.M
                 <<" probes="<< args.probes <<" w="<< args.w<<"\n";
+        args.config_summary = info.str();
+        std::cout << args.config_summary;
     } else if (args.algo == "ivfflat" || args.algo == "ivfpq") {
-        std::cout << "\n[INFO] Using configuration:\n"
+        std::ostringstream info;
+        info << "\n[INFO] Using configuration:\n"
                 << "  Dataset: " << args.dataset_path << "\n"
                 << "  Queries: " << args.query_path << "\n"
                 << "  Output: " << args.output_path << "\n"
@@ -138,10 +146,12 @@ Args parse_args(int argc, char** argv) {
                 <<"  N="<< args.N<<" R="<< args.R<<" Range=" << (args.range ? "true" : "false") <<"\n"
                 <<"  Seed="<< args.seed<<" kclusters="<< args.kclusters<<" nprobe="<< args.nprobe;
         if (args.algo == "ivfpq") {
-            std::cout << " M=" << args.pq_M << " nbits=" << args.pq_nbits << "\n";
+            info << " M=" << args.pq_M << " nbits=" << args.pq_nbits << "\n";
         } else {
-            std::cout << "\n";
+            info << "\n";
         }
+        args.config_summary = info.str();
+        std::cout << args.config_summary;
     }
     return args;
 }

@@ -5,11 +5,18 @@
 
 #include "../../include/utils/result_writer.h"
 
-void write_results(const std::vector<SearchResult>& results, const std::string& path, const std::string& method_name) {
+void write_results(const std::vector<SearchResult>& results, const std::string& path, const std::string& method_name, double approx_time_ms, const std::string& config_summary) {
     std::filesystem::create_directories(std::filesystem::path(path).parent_path());
     std::ofstream out(path);
     if (!out.is_open()) { std::cerr << "[Writer] cannot open " << path << "\n"; return; }
-    out << method_name << "\n";
+    out << "==== RESULTS OF "<< method_name << " ====\n";
+    out << "===== CONFIGURATION =====\n";
+    if (!config_summary.empty()) {
+        out << config_summary;
+        if (config_summary.back() != '\n') out << '\n';
+    }
+    out << "Execution Time (ms): " << approx_time_ms << "\n";
+    out << "=============================================================\n";
     out << std::fixed << std::setprecision(6);
     for (const auto &r : results) {
         out << "Query: " << r.query_id << "\n";
@@ -27,7 +34,7 @@ void write_results(const std::vector<SearchResult>& results, const std::string& 
             }
         }
         out << "\n";
-        out << "----------------------------------------\n";
+        out << "=============================================================\n";
         /* Evaluation Metrics Are Written In Summary*/
     }
     std::cout << "[Writer] " << results.size() << " Results written to " << path << " (method: " << method_name << ").\n";

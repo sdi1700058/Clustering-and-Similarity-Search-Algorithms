@@ -79,10 +79,9 @@ int main(int argc, char** argv) {
     std::cout << "[Main] Approx search completed in " << approx_time_ms << " ms\n";
     // Evaluate
     //auto eval = evaluate_results(approx_results, truth_results, args.N, approx_time_ms, truth_time_ms);
-
+    std::cout << "[Main] Writing results to " << args.output_path << " ...\n";
     // Write approx results
-    write_results(approx_results, args.output_path, approx->name());
-
+    write_results(approx_results, args.output_path, approx->name(), approx_time_ms, args.config_summary);
     // Summary output
     /*std::cout << "[Summary] Method=" << approx->name()
               << " AF=" << eval.average_AF
