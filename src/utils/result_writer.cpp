@@ -2,12 +2,16 @@
 #include <iostream>
 #include <iomanip>
 #include <filesystem>
+#include <vector>
 
 #include "../../include/utils/result_writer.h"
 
 void write_results(const std::vector<SearchResult>& results, const std::string& path, const std::string& method_name, double approx_time_ms, const std::string& config_summary) {
     std::filesystem::create_directories(std::filesystem::path(path).parent_path());
-    std::ofstream out(path);
+    std::vector<char> stream_buffer(1 << 20); // 1 MB buffer
+    std::ofstream out;
+    out.rdbuf()->pubsetbuf(stream_buffer.data(), static_cast<std::streamsize>(stream_buffer.size()));
+    out.open(path, std::ios::out | std::ios::trunc);
     if (!out.is_open()) { std::cerr << "[Writer] cannot open " << path << "\n"; return; }
     out << "==== RESULTS OF "<< method_name << " ====\n";
     out << "===== CONFIGURATION =====\n";
