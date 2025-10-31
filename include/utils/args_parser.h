@@ -35,6 +35,7 @@ struct Args {
     int threads, N;
     double R;
     bool range = true;
+    bool eval = true;
     bool interactive = true;
     std::string config_summary;
 

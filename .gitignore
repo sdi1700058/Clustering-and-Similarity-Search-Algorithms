@@ -46,4 +46,4 @@
 # Big data files
 # Keep large datasets local
 data/sift/
-output/
+output/*.txt

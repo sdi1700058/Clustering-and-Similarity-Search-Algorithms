@@ -60,6 +60,18 @@ Args parse_args(int argc, char** argv) {
         args.range = (tmp == "true" || tmp == "1" || tmp == "yes");
     }
 
+    if (mp.count("-eval")) {
+        std::string v = mp["-eval"];
+        std::transform(v.begin(), v.end(), v.begin(), ::tolower);
+        args.eval = (v == "true" || v == "1" || v == "yes");
+    } else {
+        std::string def = "true";
+        std::string val = get_or_prompt("-eval", "Enable evaluation? (true/false)", def);
+        std::string tmp = val;
+        std::transform(tmp.begin(), tmp.end(), tmp.begin(), ::tolower);
+        args.eval = (tmp == "true" || tmp == "1" || tmp == "yes");
+    }
+
     // --- Algorithm-specific interactive options ---
     /* *** LSH Specific Parameters *** */
     if (args.algo == "lsh") {
@@ -103,7 +115,9 @@ Args parse_args(int argc, char** argv) {
                 << "  Algorithm: " << args.algo << "\n"
                 << "  Metric: " << args.metric << "\n"
                 << "  Threads: " << args.threads << "\n"
-                << "  N=" << args.N << " R=" << args.R << " Range=" << (args.range ? "true" : "false") << "\n";
+                << "  N=" << args.N << " R=" << args.R
+                << " Range=" << (args.range ? "true" : "false")
+                << " Eval=" << (args.eval ? "true" : "false") << "\n";
         args.config_summary = info.str();  
         std::cout << args.config_summary;  
     } else if (args.algo == "lsh") {
@@ -116,7 +130,9 @@ Args parse_args(int argc, char** argv) {
                 << "  Algorithm: " << args.algo << "\n"
                 << "  Metric: " << args.metric << "\n"
                 << "  Threads: " << args.threads << "\n"
-                << "  N=" << args.N << " R=" << args.R << " Range=" << (args.range ? "true" : "false") << "\n"
+                << "  N=" << args.N << " R=" << args.R
+                << " Range=" << (args.range ? "true" : "false")
+                << " Eval=" << (args.eval ? "true" : "false") << "\n"
                 << "  Seed=" << args.seed << " k=" << args.k << " L=" << args.L << " w=" << args.w << "\n";
     } else if (args.algo == "hypercube") {
         std::ostringstream info;
@@ -128,7 +144,9 @@ Args parse_args(int argc, char** argv) {
                 << "  Algorithm: " << args.algo << "\n"
                 << "  Metric: " << args.metric << "\n"
                 << "  Threads: " << args.threads << "\n"
-                << "  N=" << args.N << " R=" << args.R << " Range=" << (args.range ? "true" : "false") << "\n"
+                << "  N=" << args.N << " R=" << args.R
+                << " Range=" << (args.range ? "true" : "false")
+                << " Eval=" << (args.eval ? "true" : "false") << "\n"
                 << "  Seed=" << args.seed << " kproj=" << args.kproj << " M=" << args.M
                 <<" probes="<< args.probes <<" w="<< args.w<<"\n";
         args.config_summary = info.str();
@@ -144,6 +162,7 @@ Args parse_args(int argc, char** argv) {
                 <<"  Metric: "<< args.metric<<"\n"
                 <<"  Threads: "<< args.threads<<"\n"
                 <<"  N="<< args.N<<" R="<< args.R<<" Range=" << (args.range ? "true" : "false") <<"\n"
+                << " Eval=" << (args.eval ? "true" : "false") << "\n"
                 <<"  Seed="<< args.seed<<" kclusters="<< args.kclusters<<" nprobe="<< args.nprobe;
         if (args.algo == "ivfpq") {
             info << " M=" << args.pq_M << " nbits=" << args.pq_nbits << "\n";
