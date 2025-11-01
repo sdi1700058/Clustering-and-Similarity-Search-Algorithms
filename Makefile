@@ -1,5 +1,5 @@
 CXX ?= g++
-CXXFLAGS ?= -O2 -std=c++17 -pthread -Iinclude -MMD -MP -Wall -Wextra -Wpedantic
+CXXFLAGS ?= -O3 -std=c++17 -pthread -Iinclude -MMD -MP -Wall -Wextra -Wpedantic
 CPPFLAGS ?=
 LDFLAGS ?=
 BINDIR ?= bin

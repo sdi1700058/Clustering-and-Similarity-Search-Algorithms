@@ -62,18 +62,6 @@ int main(int argc, char** argv) {
     approx->configure(args);
     approx->build_index(dataset);
 
-    // Create ground truth and configure (brute)
-    //auto truth = std::make_unique<BruteForceSearch>();
-    //truth->configure(args);
-    //truth->build_index(dataset);
-
-    // Run Ground Truth (brute)
-    //std::cout << "[Main] Running truth (BruteForce) ...\n";
-    //auto t0 = std::chrono::high_resolution_clock::now();
-    //auto truth_results = run_parallel_search(truth.get(), queries, args.threads, params);
-    //auto t1 = std::chrono::high_resolution_clock::now();
-    //double truth_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-
     // Run Given Algorithm (approx)
     std::cout << "[Main] Running approx (" << args.algo << ") ...\n";
     auto ta0 = std::chrono::high_resolution_clock::now();
@@ -82,12 +70,14 @@ int main(int argc, char** argv) {
     double approx_time_ms = std::chrono::duration<double, std::milli>(ta1 - ta0).count();
     std::cout << "[Main] Approx search completed in " << approx_time_ms << " ms\n";
 
+    // Evaluation with ground truth (brute-force)
     std::vector<SearchResult> truth_results;
     double truth_time_ms = 0.0;
     EvalResults eval_summary;
     const EvalResults* eval_ptr = nullptr;
     const std::vector<SearchResult>* truth_ptr = nullptr;
 
+    // Run truth and evaluate checking for cached results
     if (args.eval) {
         uint64_t dataset_hash = truth_cache::hash_vector_list(dataset);
         uint64_t query_hash = truth_cache::hash_vector_list(queries);
