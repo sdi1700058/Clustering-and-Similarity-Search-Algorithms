@@ -27,14 +27,12 @@ void IVFFlatSearch::configure(const Args& args) {
 
 void IVFFlatSearch::build_index(const std::vector<Vector>& dataset) {
     data = dataset;
-    space_dim_ = dataset.empty() ? 0 : static_cast<int>(dataset.front().values.size());
+    space_dim = dataset.empty() ? 0 : static_cast<int>(dataset.front().values.size());
     n_points = dataset.empty() ? 0 : static_cast<int>(dataset.size());
+    assert(n_points);
     centroids.clear();
 
-    n_points = data.size();
-    assert(n_points);
-    std::vector<int> assigned(n_points, 0);
-    assigned_centroid = assigned;
+    assigned_centroid.assign(n_points, 0);
 
     // 1.Lloyd's Clustering
     random_subset();
@@ -56,12 +54,19 @@ void IVFFlatSearch::build_index(const std::vector<Vector>& dataset) {
         update();
     }
 
+    assigned_centroid.assign(n_points, 0);
+    IL.clear();
+    IL.resize(p.kclusters);
+    
     for (int i = 0; i < n_points; i++) {
         // 2.Assign to nearest centroid
         assigned_centroid[i] = nearest_centroid(data[i]);
         // 3.Append to Inverted List
         IL[assigned_centroid[i]].push_back({i, data[i]});
     }
+    
+    auto [sil, total_sil] = compute_silhouette_fast();
+    std::cout << "sanity check shilhouete_fast: \n \t score: " << total_sil << std::endl;
 
     index_built = true;
     std::cout << "[IVFFlat - placeholder] index built with " << data.size() << " vectors, k=" << p.kclusters << "\n";
@@ -72,7 +77,7 @@ SearchResult IVFFlatSearch::search(const Vector& query, const Params& params, in
     SearchResult res; 
     res.query_id = query_id;
     
-    if (data.empty() || space_dim_ == 0 || static_cast<int>(query.values.size()) != space_dim_) {
+    if (data.empty() || space_dim == 0 || static_cast<int>(query.values.size()) != space_dim) {
         res.time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - t0).count();
         return res;
     }
@@ -127,10 +132,9 @@ SearchResult IVFFlatSearch::search(const Vector& query, const Params& params, in
 
     if (!b.empty()) {
         
-        std::sort( b.begin(), b.end(), [](const auto& a, const auto& b){ return a.second < b.second; } );
+        std::partial_sort(b.begin(), b.begin() + params.N, b.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
         
         int topK = std::min(params.N, static_cast<int>(b.size()));
-        topK = std::max(topK, 0);
         for (int i = 0; i < topK; ++i) {
             res.neighbor_ids.push_back(b[i].first);
             res.distances.push_back(static_cast<float>(b[i].second));
@@ -141,6 +145,8 @@ SearchResult IVFFlatSearch::search(const Vector& query, const Params& params, in
                 if (cand.second <= params.R) {
                     res.range_neighbor_ids.push_back(cand.first);
                     res.range_distances.push_back(static_cast<float>(cand.second));
+                } else {
+                    break;
                 }
             }
         }
@@ -323,7 +329,7 @@ void IVFFlatSearch::update() {
         const auto& cluster_vectors = centroids_map[i];
 
         // for each one of its dimenions
-        for (int j = 0; j < (int)space_dim_; j++) {
+        for (int j = 0; j < (int)space_dim; j++) {
 
             // Collect all components (values) for dimension j from all vectors in cluster i
             std::vector<double> current_component;
@@ -425,12 +431,14 @@ std::pair<std::vector<double>, double> IVFFlatSearch::compute_silhouette_fast() 
 std::pair<std::vector<double>, double> IVFFlatSearch::compute_silhouette() {
     
     // Create cluster maps
-    std::vector<std::vector<int>> centroids_map((int)p.kclusters);
+    std::vector<std::vector<int>> centroids_map(p.kclusters);
     
     for (int i = 0; i < (int)p.kclusters; i++) {
         centroids_map[i].reserve(n_points / (int)p.kclusters + 100);
     }
-    
+      // Ensure assigned_centroid has correct size
+    if (assigned_centroid.size() != (size_t)n_points) assigned_centroid.assign(n_points, 0);
+
     for (int i = 0; i < n_points; i++) {
         centroids_map[assigned_centroid[i]].push_back(i);
     }

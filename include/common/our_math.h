@@ -8,9 +8,6 @@
 
 namespace our_math {
 
-    // ======================
-    //  Mean
-    // ======================
     template <typename T>
     inline T mean(const std::vector<T>& vec) {
         if (vec.empty())
@@ -24,9 +21,6 @@ namespace our_math {
         return mean<double>(vec);
     }
 
-    // ======================
-    //  Median
-    // ======================
     template <typename T>
     inline T median(const std::vector<T>& vec) {
         if (vec.empty())
@@ -39,7 +33,7 @@ namespace our_math {
         std::nth_element(
             current_vector.begin(),
             current_vector.begin() + median_index,
-            current_vector.end()
+            current_vector.end() 
         );
 
         if (n % 2 != 0) {

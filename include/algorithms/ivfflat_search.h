@@ -30,7 +30,7 @@ private:
     
     std::vector<std::vector<std::pair<int, Vector>>> IL;
 
-    int space_dim_ = 0;
+    int space_dim = 0;
     int n_points = 0;
     bool index_built = false;
 

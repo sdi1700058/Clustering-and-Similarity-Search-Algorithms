@@ -5,7 +5,8 @@
 #include "../../include/common/evaluation_metrics.h"
 
 EvalResults evaluate_results(const std::vector<SearchResult>& approx,
-                             const std::vector<SearchResult>& truth, int N,
+                             const std::vector<SearchResult>& truth, 
+                             int N,
                              double total_time_ms_approx,
                              double total_time_ms_truth) {
     EvalResults r;
@@ -42,11 +43,11 @@ EvalResults evaluate_results(const std::vector<SearchResult>& approx,
     r.tApproxAvg = tapprox_sum / (double)qcount;
     r.tTrueAvg = ttrue_sum / (double)qcount;
 
-    std::cout << "[Eval] Average AF=" << r.average_AF
-              << " Recall@" << N << "=" << r.recall_at_N
-              << " QPS=" << r.qps
-              << " TruthQPS=" << truth_qps
-              << " tApproxAvg=" << r.tApproxAvg << "ms"
+    std::cout << "[Eval] Average AF=" << r.average_AF << "\n"
+              << " Recall@" << N << "=" << r.recall_at_N << "\n"
+              << " QPS=" << r.qps << "\n"
+              << " TruthQPS=" << truth_qps << "\n"
+              << " tApproxAvg=" << r.tApproxAvg << "ms" << "\n"
               << " tTrueAvg=" << r.tTrueAvg << "ms\n";
     return r;
 }

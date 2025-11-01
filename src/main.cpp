@@ -52,23 +52,29 @@ int main(int argc, char** argv) {
     }
 
     Params params; params.N = args.N; params.R = args.R; params.enable_range = args.range;
-
+    std::cout << "sanity check" << std::endl;
     // Create approx algorithm and configure
     auto approx = create_algorithm(args.algo);
+    std::cout << "sanity check" << std::endl;
+
+    std::cout << "sanity check" << std::endl;
     approx->configure(args);
+    std::cout << "sanity check" << std::endl;
     approx->build_index(dataset);
+    std::cout << "sanity check" << std::endl;
 
     // Create ground truth and configure (brute)
-    //auto truth = std::make_unique<BruteForceSearch>();
-    //truth->configure(args);
-    //truth->build_index(dataset);
+    auto truth = std::make_unique<BruteForceSearch>();
+    truth->configure(args);
+    truth->build_index(dataset);
 
     // Run Ground Truth (brute)
-    //std::cout << "[Main] Running truth (BruteForce) ...\n";
-    //auto t0 = std::chrono::high_resolution_clock::now();
-    //auto truth_results = run_parallel_search(truth.get(), queries, args.threads, params);
-    //auto t1 = std::chrono::high_resolution_clock::now();
-    //double truth_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    std::cout << "[Main] Running truth (BruteForce) ...\n";
+    auto t0 = std::chrono::high_resolution_clock::now();
+    auto truth_results = run_parallel_search(truth.get(), queries, args.threads, params);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    double truth_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    std::cout << "[Main] Truth (BruteForce) search completed in " << truth_time_ms / 1000 << " sec\n";
 
     // Run Given Algorithm (approx)
     std::cout << "[Main] Running approx (" << args.algo << ") ...\n";
@@ -76,21 +82,23 @@ int main(int argc, char** argv) {
     auto approx_results = run_parallel_search(approx.get(), queries, args.threads, params);
     auto ta1 = std::chrono::high_resolution_clock::now();
     double approx_time_ms = std::chrono::duration<double, std::milli>(ta1 - ta0).count();
-    std::cout << "[Main] Approx search completed in " << approx_time_ms << " ms\n";
+    std::cout << "[Main] Approx search completed in " << approx_time_ms / 1000 << " sec\n";
+    std::cout << "[Main] Mean Approx search " << approx_time_ms / 10000000 << " sec\n";
+
     // Evaluate
-    //auto eval = evaluate_results(approx_results, truth_results, args.N, approx_time_ms, truth_time_ms);
+    auto eval = evaluate_results(approx_results, truth_results, args.N, approx_time_ms, truth_time_ms);
 
     // Write approx results
-    write_results(approx_results, args.output_path, approx->name());
+    // write_results(approx_results, args.output_path, approx->name());
 
     // Summary output
-    /*std::cout << "[Summary] Method=" << approx->name()
-              << " AF=" << eval.average_AF
+    std::cout << "[Summary] Method=" << approx->name() << "\n"
+              << " AF=" << eval.average_AF << "\n"
               << " Recall@" << args.N << "=" << eval.recall_at_N
               << " QPS=" << eval.qps << "\n"
-              << " tApproxAvg=" << eval.tApproxAvg << "ms"
+              << " tApproxAvg=" << eval.tApproxAvg << "ms" << "\n"
               << " tTrueAvg=" << eval.tTrueAvg << "ms\n";
-              */
+              
 
     return 0;
 }

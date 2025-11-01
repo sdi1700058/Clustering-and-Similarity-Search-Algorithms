@@ -18,15 +18,23 @@ std::vector<SearchResult> run_parallel_search(
             int i = counter++;
             if (i >= (int)queries.size()) break;
             results[i] = algo->search(queries[i], params, i);
+            // if(i == 10 ){
+            //     std::cout << "sanity check parallel_runner \n \t quiry counter: " << i << std::endl;
+            //     break;
+            // }
         }
     };
 
     std::vector<std::thread> threads;
-    for (int t = 0; t < num_threads; ++t)
-        threads.emplace_back(worker);
+    for (int t = 0; t < num_threads; ++t){
 
-    for (auto& t : threads)
+        threads.emplace_back(worker);
+    }
+
+    for (auto& t : threads) {
+
         t.join();
+    }
 
     std::cout << "[Parallel] Completed all queries with " << num_threads << " threads.\n";
     return results;

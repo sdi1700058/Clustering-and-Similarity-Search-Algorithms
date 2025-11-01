@@ -9,144 +9,188 @@
 #include "../../include/algorithms/lsh_search.h"
 #include "../../include/utils/args_parser.h"
 
-using namespace std::chrono;
-
-namespace {
-static double dot_product(const std::vector<double>& a, const std::vector<double>& b) {
-    double s = 0.0;
-    const size_t n = std::min(a.size(), b.size());
-    for (size_t i = 0; i < n; ++i) s += a[i] * b[i];
-    return s;
-}
-}
-
-std::uint64_t LSHSearch::hash_combine(const std::vector<int>& hvals) const {
-    std::uint64_t seed = 1469598103934665603ull; // FNV offset
-    const std::uint64_t prime = 1099511628211ull;
-    for (int v : hvals) {
-        std::uint64_t val = static_cast<std::uint64_t>(v);
-        seed ^= val + 0x9e3779b97f4a7c15ull + (seed << 6) + (seed >> 2);
-        seed *= prime;
-    }
-    return seed;
-}
-
-std::vector<int> LSHSearch::compute_hashes(const HashTable& table, const Vector& v) const {
-    std::vector<int> hvals;
-    hvals.reserve(table.g.size());
-    for (const auto& h : table.g) {
-        double projection = dot_product(h.a, v.values);
-        double value = (projection + h.b) / p.w;
-        int bucket = static_cast<int>(std::floor(value));
-        hvals.push_back(bucket);
-    }
-    return hvals;
-}
-
-std::uint64_t LSHSearch::compute_key(const HashTable& table, const Vector& v) const {
-    auto hvals = compute_hashes(table, v);
-    return hash_combine(hvals);
-}
-
-void LSHSearch::build_tables() {
-    tables.clear();
-    tables.resize(p.L);
-    std::uniform_real_distribution<double> dist_b(0.0, p.w);
-    std::normal_distribution<double> dist_a(0.0, 1.0);
-
-    for (auto& table : tables) {
-        table.g.resize(p.k);
-        for (auto& fn : table.g) {
-            fn.a.resize(space_dim_);
-            for (int d = 0; d < space_dim_; ++d) fn.a[d] = dist_a(rng);
-            fn.b = dist_b(rng);
-        }
-    }
-
-    for (int idx = 0; idx < static_cast<int>(dataset_.size()); ++idx) {
-        const auto& vec = dataset_[idx];
-        for (auto& table : tables) {
-            auto key = compute_key(table, vec);
-            table.buckets[key].push_back(idx);
-        }
-    }
-}
 
 void LSHSearch::configure(const Args& args) {
     p.seed = args.seed;
     p.k = args.k;
     p.L = args.L;
-    p.w = args.w > 0 ? args.w : default_w;
+    p.w = args.w;
     p.N = args.N;
     p.R = args.R;
-    rng.seed(static_cast<std::mt19937::result_type>(p.seed));
+    rng.seed(args.seed);
 }
 
 void LSHSearch::build_index(const std::vector<Vector>& dataset) {
-    dataset_ = dataset;
-    space_dim_ = dataset_.empty() ? 0 : static_cast<int>(dataset_.front().values.size());
+    data = dataset;
+    space_dim = dataset.empty() ? 0 : static_cast<int>(dataset.front().values.size());
+    n_points = dataset.empty() ? 0 : static_cast<int>(dataset.size());
 
-    if (dataset_.empty()) {
-        std::cout << "[LSH] dataset is empty, index cleared\n";
-        return;
-    }
-    if (space_dim_ == 0) {
-        throw std::runtime_error("[LSH] dataset vectors have zero dimension");
-    }
-    if (p.L <= 0 || p.k <= 0) {
-        throw std::runtime_error("[LSH] Invalid parameters: L and k must be positive");
-    }
+    build_hashes();
+
+    initialize();
+    
     build_tables();
-    std::cout << "[LSH] Built " << p.L << " hash tables for " << dataset_.size() << " vectors (space_dim_=" << space_dim_ << ")\n";
+    
+    std::cout << "[LSH] Built " << p.L << " hash tables for " << dataset.size() << " vectors (space_dim=" << space_dim << ")\n";
+}
+
+void LSHSearch::build_hashes() {
+    std::normal_distribution<double> gaussian(0.0, 1.0);
+    std::uniform_real_distribution<double> distribution(0.0, p.w);
+
+	for (int i = 0; i < p.L; i++) {
+        std::vector<std::pair<std::vector<double>, double>> hlist;
+        for (int j = 0; j < p.k; j++) {
+            std::vector<double> a(space_dim);
+            for (int d = 0; d < space_dim; d++)
+                a[d] = gaussian(rng);
+
+            double b = distribution(rng);
+
+            hlist.push_back({a,b});
+        }
+
+		amplified_hash_fns.push_back(hlist);
+	}
+}
+
+void LSHSearch::initialize() {
+    lsh_tables.clear();
+    lsh_tables.reserve(p.L);
+
+	// initialize all of our hash tables
+	for (int i = 0; i < p.L; i++) {
+        std::unordered_map<int, std::list<int>> table; 
+        lsh_tables.push_back(std::move(table));
+	}
+}
+
+void LSHSearch::build_tables() {
+
+    for (size_t table_idx = 0; table_idx < amplified_hash_fns.size(); ++table_idx) {
+        const auto& amplified_fn = amplified_hash_fns[table_idx];
+
+        for (int i = 0; i < n_points; ++i) {
+            int bucket = assign_to_bucket(amplified_fn, data[i]);
+            lsh_tables[table_idx][bucket].push_back(i);
+        }
+    }
+}
+
+
+
+
+int LSHSearch::modulo(int a, int b) const {
+    int c = a % b;
+    return (c < 0) ? c + b : c;
+}
+// executes the operation (x^y) mod p
+int LSHSearch::modular_power(int x, int y, int p) {
+    int res = 1;
+
+    x = x % p;
+    while (y > 0) {
+        if (y & 1)
+            res = (res * x) % p;
+        y = y >> 1;
+        x = (x * x) % p;
+    }
+    return res;
+};
+
+int LSHSearch::assign_to_bucket(const std::vector<std::pair<std::vector<double>, double>>& amplified_fn, const Vector& x) const {
+
+    int64_t combined_hash = 0;
+
+    for (int i = 0; i < p.k; i++) {
+        const auto& a = amplified_fn[i].first; // random vector
+        double b = amplified_fn[i].second;     // offset
+
+        double dot_product = 0.0;
+        for (int d = 0; d < space_dim; d++)
+            dot_product += a[d] * x.values[d];
+
+        int h = static_cast<int>(std::floor((dot_product + b) / p.w));
+
+        // Combine hashes
+        combined_hash = combined_hash * 31 + h;  // simple hash combiner
+    }
+// Use std::hash to map to a non-negative bucket
+    size_t bucket_id = std::hash<int64_t>{}(combined_hash) % (n_points / 4); // table_size = number of buckets
+    return static_cast<int>(bucket_id);
+    // return modulo(static_cast<int>(combined_hash), p.M);
 }
 
 SearchResult LSHSearch::search(const Vector& query, const Params& params, int query_id) const {
-    auto t0 = high_resolution_clock::now();
-    SearchResult res; 
-    res.query_id = query_id;
-    
-    if (dataset_.empty()) return res;
+    auto t0 = std::chrono::high_resolution_clock::now();
+    SearchResult res;
+    res.query_id = query_id;  // optional placeholder if needed
 
-    std::unordered_set<int> candidates_ids;
-
-    for (const auto& table : tables) {
-        auto key = compute_key(table, query);
-        auto it = table.buckets.find(key);
-        if (it != table.buckets.end()) {
-            for (int idx : it->second) candidates_ids.insert(idx);
-        }
+    if (amplified_hash_fns.empty() || data.empty() || space_dim == 0) {
+        res.time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - t0).count();
+        return res;
     }
 
-    if (candidates_ids.empty()) {
-        for (size_t i = 0; i < dataset_.size(); ++i) candidates_ids.insert(static_cast<int>(i));
-    }
+    std::vector<std::pair<int, double>> b; // (index, distance)
+    b.reserve(n_points);
 
-    struct Candidate { int idx; double dist; };
-    std::vector<Candidate> b;
-    b.reserve(candidates_ids.size());
-    for (int idx : candidates_ids) {
-        double dist = metrics::distance(dataset_[idx].values, query.values, metrics::GLOBAL_METRIC_CFG);
-        b.push_back({idx, dist});
-    }
-    std::sort(b.begin(), b.end(), [](const Candidate& a, const Candidate& b){ return a.dist < b.dist; });
+    // 1. Traverse LSH tables
+    for (size_t table_idx = 0; table_idx < amplified_hash_fns.size(); ++table_idx) {
+        const auto& amplified_fn = amplified_hash_fns[table_idx];
 
-    int topK = std::min(params.N, static_cast<int>(b.size()));
-    topK = std::max(topK, 0);
-    for (int i = 0; i < topK; ++i) {
-        res.neighbor_ids.push_back(b[i].idx);
-        res.distances.push_back(static_cast<float>(b[i].dist));
-    }
+        int bucket_id = assign_to_bucket(amplified_fn, query);
+        // const auto& bucket = lsh_tables.at(table_idx)[bucket_id];
 
-    if (params.enable_range && params.R > 0.0) {
-        for (const auto& cand : b) {
-            if (cand.dist <= params.R) {
-                res.range_neighbor_ids.push_back(cand.idx);
-                res.range_distances.push_back(static_cast<float>(cand.dist));
+        // 2. Collect candidate distances
+        // for (int i : bucket) {
+        //     double dist = metrics::distance(
+        //         query.values, 
+        //         data[i].values, 
+        //         metrics::GLOBAL_METRIC_CFG
+        //     );
+
+        //     b.push_back({i, dist});
+        // }
+        auto bucket = lsh_tables[table_idx].find(bucket_id);
+        if (bucket != lsh_tables[table_idx].end()) {
+            
+            for (int i : bucket->second) {
+                double dist = metrics::distance(
+                    query.values, 
+                    data[i].values, 
+                    metrics::GLOBAL_METRIC_CFG
+                );
+
+                b.push_back({i, dist});
             }
         }
     }
 
-    auto t1 = high_resolution_clock::now();
-    res.time_ms = duration<double, std::milli>(t1 - t0).count();
+    // 3. Find the R nearest b
+    if (!b.empty()) {
+        
+        std::partial_sort(b.begin(), b.begin() + params.N, b.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
+        
+        int topK = std::min(params.N, static_cast<int>(b.size()));
+        for (int i = 0; i < topK; ++i) {
+            res.neighbor_ids.push_back(b[i].first);
+            res.distances.push_back(static_cast<float>(b[i].second));
+        }
+        
+        if (params.enable_range && params.R > 0.0) {
+            for (const auto& cand : b) {
+                if (cand.second <= params.R) {
+                    res.range_neighbor_ids.push_back(cand.first);
+                    res.range_distances.push_back(static_cast<float>(cand.second));
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    res.time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
     return res;
 }
