@@ -39,7 +39,7 @@ make clean για ολα τα προγράμματα.
     -threads: number of threads (default: 1)
 
 ### CLI Example: 
-=== ANN Framework ===
+"=== ANN Framework ===
 [INPUT] Enter distance metric (l1/l2) (default: l2) (q to quit): l2
 [INPUT] Enter number of threads (default: 1) (q to quit): 10
 [INPUT] Enter number of nearest neighbors N (default: 1) (q to quit): 1
@@ -58,10 +58,10 @@ make clean για ολα τα προγράμματα.
   Metric: l2
   Threads: 10
   N=1 R=20 Range=false
-  Seed=1 kclusters=10 nprobe=5
+  Seed=1 kclusters=10 nprobe=5"
 
 ### Output Format Example:
-=== RESULTS OF IVFPQ ====
+"=== RESULTS OF IVFPQ ====
 ===== CONFIGURATION =====
 
 [INFO] Using configuration:
@@ -99,7 +99,7 @@ Nearest neighbor-2: 880592
 distanceApproximate: 233.229919
 distanceTrue: 229.281479
 
-=============================================================
+============================================================="
 ... and so on for all queries
 
 ### Datasets:
