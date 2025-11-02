@@ -1,5 +1,5 @@
 CXX ?= g++
-CXXFLAGS ?= -O3 -std=c++17 -pthread -g -Iinclude -MMD -MP -Wall -Wextra -Wpedantic
+CXXFLAGS ?= -O3 -std=c++17 -pthread -Iinclude -MMD -MP -Wall -Wextra -Wpedantic
 CPPFLAGS ?=
 LDFLAGS ?=
 BINDIR ?= bin
@@ -26,7 +26,12 @@ $(BUILD_DIR)/%.o: src/%.cpp
 
 -include $(DEPENDS)
 
-.PHONY: clean all search run format run_hypercube_mnist run_hypercube_sift
+.PHONY: clean all search run format run_hypercube_mnist run_hypercube_sift \
+	check_run_hypercube_mnist check_run_hypercube_sift \
+	run_lsh_mnist run_lsh_sift \
+	check_run_lsh_mnist check_run_lsh_sift \
+	run_ivfflat_mnist run_ivfflat_sift \
+	check_run_ivfflat_mnist check_run_ivfflat_sift
 
 run: $(TARGET)
 	$(TARGET) $(RUN_ARGS)
@@ -40,7 +45,7 @@ run_hypercube_mnist: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/hypercube_mnist_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo hypercube -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist -threads 6
+	$(TARGET) -algo hypercube -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
 
 run_hypercube_sift: $(TARGET)
 	@mkdir -p output
@@ -51,7 +56,29 @@ run_hypercube_sift: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/hypercube_sift_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo hypercube -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift -threads 6
+	$(TARGET) -algo hypercube -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
+
+check_run_hypercube_mnist:
+	@mkdir -p output
+	@i=$$(ls output/hypercube_mnist_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/hypercube_mnist_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(TARGET) -algo hypercube -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
+
+check_run_hypercube_sift: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/hypercube_sift_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/hypercube_sift_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(TARGET) -algo hypercube -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
 
 run_lsh_mnist: $(TARGET)
 	@mkdir -p output
@@ -62,7 +89,7 @@ run_lsh_mnist: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/lsh_mnist_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo lsh -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist -threads 6
+	$(TARGET) -algo lsh -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
 
 run_lsh_sift: $(TARGET)
 	@mkdir -p output
@@ -73,7 +100,29 @@ run_lsh_sift: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/lsh_sift_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo lsh -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift -threads 6
+	$(TARGET) -algo lsh -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
+
+check_run_lsh_mnist: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/lsh_mnist_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/lsh_mnist_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(TARGET) -algo lsh -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
+
+check_run_lsh_sift: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/lsh_sift_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/lsh_sift_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(TARGET) -algo lsh -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
 
 run_ivfflat_mnist: $(TARGET)
 	@mkdir -p output
@@ -84,16 +133,7 @@ run_ivfflat_mnist: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/ivfflat_mnist_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo ivfflat -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist -threads 4
-
-val_ivfflat_mnist: $(TARGET)
-	$(TARGET) valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./bin/search \
-    -algo ivfflat \
-    -d data/mnist/train/train-images.idx3-ubyte \
-    -q data/mnist/query-test/t10k-images.idx3-ubyte \
-    -o output/ivfflat_sift_valgrind.txt \
-    -type mnist \
-    -threads 4
+	$(TARGET) -algo ivfflat -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
 
 run_ivfflat_sift: $(TARGET)
 	@mkdir -p output
@@ -104,7 +144,73 @@ run_ivfflat_sift: $(TARGET)
 	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
 	out=output/ivfflat_sift_$$i.txt; \
 	echo "Running $(TARGET) -> $$out"; \
-	$(TARGET) -algo ivfflat -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift -threads 4
+	$(TARGET) -algo ivfflat -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
+
+check_run_ivfflat_mnist: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/ivfflat_mnist_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/ivfflat_mnist_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(TARGET) -algo ivfflat -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
+
+check_run_ivfflat_sift: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/ivfflat_sift_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/ivfflat_sift_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(TARGET) -algo ivfflat -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
+
+run_ivfpq_mnist: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/ivfpq_mnist_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/ivfpq_mnist_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	$(TARGET) -algo ivfpq -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
+
+run_ivfpq_sift: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/ivfpq_sift_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/ivfpq_sift_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	$(TARGET) -algo ivfpq -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
+
+check_run_ivfpq_mnist: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/ivfpq_mnist_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/ivfpq_mnist_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(TARGET) -algo ivfpq -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
+
+check_run_ivfpq_sift: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/ivfpq_sift_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/ivfpq_sift_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(TARGET) -algo ivfpq -d data/sift/sift_base
 
 format:
 	clang-format -i $(SOURCES)

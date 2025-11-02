@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     auto eval = evaluate_results(approx_results, truth_results, args.N, approx_time_ms, truth_time_ms);
 
     // Write approx results
-    // write_results(approx_results, args.output_path, approx->name());
+    write_results(approx_results, args.output_path, approx->name(), approx_time_ms, args.config_summary, &truth_results, &eval);
 
     // Summary output
     std::cout << "[Summary] Method=" << approx->name() << "\n"
