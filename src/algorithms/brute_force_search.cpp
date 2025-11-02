@@ -34,7 +34,7 @@ SearchResult BruteForceSearch::search(const Vector& query, const Params& params,
     // Use a fixed-size max-heap to keep top-N smallest distances
     std::priority_queue<std::pair<double, int>> topN; // (distance, id)
 
-    for (uint32_t i = 0; i < n_points; ++i) {
+    for (int i = 0; i < n_points; ++i) {
         double dist = metrics::distance(
             query.values,
             feature_vectors[i].values,

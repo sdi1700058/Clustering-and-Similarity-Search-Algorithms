@@ -70,7 +70,7 @@ std::vector<Vector> kmeans_pp(const std::vector<Vector>& points,
 
     centers.resize(actual_k);
 
-    const int max_iters = 50;
+    const int max_iters = 5;
     std::vector<int> assignment(points.size(), -1);
 
     for (int iter = 0; iter < max_iters; ++iter) {
@@ -182,21 +182,24 @@ void IVFPQSearch::build_index(const std::vector<Vector>& dataset) {
     while (changed > threshold && guard < 10) {
         // Step 1.b: call the appropriate method of assignment
         changed = assignment_lloyds();
-
+        std::cout << "[IVFPQ] Assignment completed with " << changed << " changed vectors.\n";
         // Step 1.c: Update the centroids
         update();
         ++guard;
     }
-
+    std::cout << "[IVFPQ] Coarse clustering completed in " << guard
+              << " iterations with " << p.kclusters << " clusters.\n";
     // 2. Build Inverted Lists
     data_assignments_.assign(n_points_, -1);
     for (int i = 0; i < n_points_; ++i) {
         // 2.Assign to nearest centroid
         data_assignments_[i] = nearest_centroid(data[static_cast<size_t>(i)]);
     }
-
+    std::cout << "[IVFPQ] Data assignment to centroids completed.\n";
     build_pq_codebooks();
-
+    std::cout << "[IVFPQ] PQ codebooks built with " << codebook_size_
+              << " centroids per sub-vector.\n";
+    // 3. Encode points and build inverted lists
     point_codes_.assign(n_points_, std::vector<std::uint8_t>(p.M, 0));
     inverted_lists_.assign(static_cast<size_t>(p.kclusters), {});
     for (int i = 0; i < n_points_; ++i) {
@@ -206,7 +209,7 @@ void IVFPQSearch::build_index(const std::vector<Vector>& dataset) {
         // 3.Append to Inverted List
         inverted_lists_[static_cast<size_t>(cid)].push_back(i);
     }
-
+    std::cout << "[IVFPQ] Inverted lists built with " << inverted_lists_.size() << " clusters.\n";
     index_built = true;
     std::cout << "[IVFPQ] index built with " << data.size()
               << " vectors (dim=" << space_dim_
@@ -224,7 +227,7 @@ SearchResult IVFPQSearch::search(const Vector& query, const Params& params, int 
         res.time_ms = std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
         return res;
     }
-
+    std::cout << "[IVFPQ] Search started for query ID " << query_id << ".\n";
     if (static_cast<int>(query.values.size()) != space_dim_) {
         res.time_ms = std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
         return res;
@@ -322,7 +325,7 @@ SearchResult IVFPQSearch::search(const Vector& query, const Params& params, int 
             }
         }
     }
-
+    std::cout << "[IVFPQ] Search completed for query ID " << query_id << ".\n";
     auto t1 = Clock::now();
     res.time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
     return res;
@@ -684,12 +687,12 @@ std::vector<double> IVFPQSearch::compute_residual(const Vector& vec, int centroi
 // Steps 4-5: split residuals into M subvectors and train the codebooks
 void IVFPQSearch::build_pq_codebooks() {
     pq_codebooks_.assign(static_cast<size_t>(p.M), {});
-
+    std::cout << "[IVFPQ] Building PQ codebooks...\n";
     std::vector<std::vector<Vector>> training(static_cast<size_t>(p.M));
     for (int idx = 0; idx < n_points_; ++idx) {
         int cid = data_assignments_[idx];
         if (cid < 0) continue;
-
+        std::cout << "[IVFPQ] Processing vector " << idx << " for centroid " << cid << ".\n";
         std::vector<double> residual = compute_residual(data[static_cast<size_t>(idx)], cid);
         for (int m = 0; m < p.M; ++m) {
             Vector part;
@@ -700,14 +703,18 @@ void IVFPQSearch::build_pq_codebooks() {
             }
             training[static_cast<size_t>(m)].push_back(std::move(part));
         }
+        std::cout << "[IVFPQ] Vector " << idx << " processed.\n";
     }
 
     for (int m = 0; m < p.M; ++m) {
+        std::cout << "[IVFPQ] Training PQ codebook for sub-vector " << m << ".\n";
         auto centers = kmeans_pp(training[static_cast<size_t>(m)],
                                  codebook_size_,
                                  subvector_dim_,
                                  rng);
         pq_codebooks_[static_cast<size_t>(m)] = std::move(centers);
+        std::cout << "[IVFPQ] PQ codebook for sub-vector " << m << " trained with "
+                  << pq_codebooks_[static_cast<size_t>(m)].size() << " centroids.\n";
     }
 }
 
@@ -715,7 +722,6 @@ void IVFPQSearch::build_pq_codebooks() {
 std::vector<std::uint8_t> IVFPQSearch::encode_point(const Vector& vec, int centroid_idx) const {
     std::vector<std::uint8_t> codes(static_cast<size_t>(p.M), 0);
     if (centroid_idx < 0) return codes;
-
     std::vector<double> residual = compute_residual(vec, centroid_idx);
     for (int m = 0; m < p.M; ++m) {
         size_t offset = static_cast<size_t>(m * subvector_dim_);
