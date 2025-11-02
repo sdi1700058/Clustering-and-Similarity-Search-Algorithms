@@ -20,48 +20,6 @@ void BruteForceSearch::build_index(const std::vector<Vector>& dataset) {
     std::cout << "[BruteForce] built index with " << n_points << " points (dim=" << space_dim << ")\n";
 }
 
-// SearchResult BruteForceSearch::search(const Vector& query, const Params& params, int query_id) const {
-//     auto t0 = high_resolution_clock::now();
-//     SearchResult res; res.query_id = query_id;
-//     if (n_points == 0) return res;
-
-//     std::vector<std::pair<int, double>> b; 
-    
-
-//     for (int i = 0; i < n_points; i++){
-//         double dist = metrics::distance(
-//             query.values, 
-//             feature_vectors[i].values,
-//             metrics::GLOBAL_METRIC_CFG
-//         );
-//         b.push_back({i, dist});
-//     }
-
-//     std::partial_sort(b.begin(), b.begin() + params.N, b.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
-
-//     int topK = std::min(params.N, static_cast<int>(b.size()));
-//     for (int i = 0; i < topK; ++i) {
-//         res.neighbor_ids.push_back(b[i].first);
-//         res.distances.push_back(static_cast<float>(b[i].second));
-//     }
-    
-//     if (params.enable_range && params.R > 0.0) {
-//         for (const auto& cand : b) {
-//             if (cand.second <= params.R) {
-//                 res.range_neighbor_ids.push_back(cand.first);
-//                 res.range_distances.push_back(static_cast<float>(cand.second));
-//             } else {
-//                 break;
-//             }
-//         }
-//     }
-
-    
-//     auto t1 = high_resolution_clock::now();
-//     res.time_ms = duration<double, std::milli>(t1 - t0).count();
-//     return res;
-// }
-
 
 SearchResult BruteForceSearch::search(const Vector& query, const Params& params, int query_id) const {
     using namespace std::chrono;
