@@ -30,8 +30,8 @@ private:
 
     std::vector<Vector> data;
 
-    std::vector<std::vector<std::pair<std::vector<double>, double>>> amplified_hash_fns;
-    std::vector<std::unordered_map<int, std::list<int>>> lsh_tables;
+    std::vector<std::vector<std::vector<std::pair<int, double>>>> amplified_hash_fns;
+    std::vector<std::vector<std::list<int>>> lsh_tables;
 
     int space_dim = 0;
     int n_points = 0;
@@ -43,7 +43,7 @@ private:
     void build_tables();
     int modulo(int a, int b) const;
     int modular_power(int x, int y, int p);
-    int assign_to_bucket(const std::vector<std::pair<std::vector<double>, double>>& amplified_fn, const Vector& x) const;
+    int assign_to_bucket(const std::vector<std::vector<std::pair<int, double>>>& amplified_fn, const Vector& x) const;
 
 public:
     LSHSearch() : rng(p.seed) {} 
