@@ -369,7 +369,6 @@ int IVFFlatSearch::assignment_lloyds() {
 
 
 // FAST APPROXIMATION VERSION: Use centroids instead of all points
-// This is 10-100x faster with minimal accuracy loss
 std::pair<std::vector<double>, double> IVFFlatSearch::compute_silhouette_fast() {
     
     std::vector<double> silhouettes((int)p.kclusters, 0);
@@ -426,8 +425,6 @@ std::pair<std::vector<double>, double> IVFFlatSearch::compute_silhouette_fast() 
     return std::make_pair(silhouettes, total_sil);
 }
 
-// Optimized silhouette computation with multiple speedup strategies
-// Optimized silhouette computation
 std::pair<std::vector<double>, double> IVFFlatSearch::compute_silhouette() {
     
     // Create cluster maps

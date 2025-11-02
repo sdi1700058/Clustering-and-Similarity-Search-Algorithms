@@ -369,7 +369,6 @@ std::vector<std::vector<int>> IVFPQSearch::get_centroids_map() const {
 // Silhouette scores ----------------------------------------------------------
 
 // FAST APPROXIMATION VERSION: Use centroids instead of all points
-// This is 10-100x faster with minimal accuracy loss
 std::pair<std::vector<double>, double> IVFPQSearch::compute_silhouette_fast() const {
     const size_t centroid_count = centroids.size();
     if (centroid_count == 0) return {{}, 0.0};
@@ -420,8 +419,6 @@ std::pair<std::vector<double>, double> IVFPQSearch::compute_silhouette_fast() co
     return {silhouettes, total_sil};
 }
 
-// Optimized silhouette computation with multiple speedup strategies
-// Optimized silhouette computation
 std::pair<std::vector<double>, double> IVFPQSearch::compute_silhouette() const {
     const size_t centroid_count = centroids.size();
     if (centroid_count == 0) return {{}, 0.0};
