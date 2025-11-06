@@ -45,6 +45,6 @@
 
 # Big data files
 # Keep large datasets local
-data/sift/
+data/sift/*
 output/
 bin/

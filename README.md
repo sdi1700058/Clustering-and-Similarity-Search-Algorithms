@@ -1,45 +1,53 @@
 # Clustering-and-Similarity-Search-Algorithms
-Υλοποίηση αλγορίθμων αναζήτησης διανυσμάτων και συσταδοποίησης σε C++.
- - LSH και Hypercube
- - IVFFlat
- - IVFPQ 
+Υλοποίηση αλγορίθμων αναζήτησης διανυσμάτων και συσταδοποίησης σε C++ για d-διάστατους χώρους, βάσει της Euclidean (L2) metric.
 
-Η παρούσα εργασία υλοποιήθηκε στα πλαίσια του μαθήματος «Ανάπτυξη Λογισμικού για Αλ- 
-γοριθμικά Προβλήματα» και έχει ως στόχο την ανάπτυξη και την υλοποιήση των ακόλουθων
-αλγόριθμων αναζήτησης διανυσμάτων στον d-διάστατο χώρο βάσει της ευκλείδειας μετρικής
-(L2):
-1. Aλγόριθμο LSH και αλγόριθμο τυχαίας προβολής σε υπερκύβο (Hypercube).
-2. Αλγόριθμο αναζήτησης με χρήση συσταδοποίησης k-means και ευρετήριο Inverted
-File Flat (IVFFlat).
-3. Αλγόριθμο αναζήτησης με χρήση συσταδοποίησης k-means και ευρετήριο Inverted
-File Product Quantization (IVFPQ).
+Αλγόριθμοι:
+1. LSH και Hypercube (random projections).
+2. Αναζήτηση με k-means και Inverted File Flat (IVFFlat).
+3. Αναζήτηση με k-means και Inverted File Product Quantization (IVFPQ).
 
+Δείτε τη ροή εκτέλεσης στο `src/main.cpp`. Οι επιλογές γραμμής εντολών υλοποιούνται στον parser (`include/utils/args_parser.h`, `src/utils/args_parser.cpp`).
 
-Για το compiling των προγραμματων χρεισημοποιούμε κατάληλο Makefile. Πιο συγκεκριμενα: 
+## Build & Run (Makefile)
 
-    • make run_lsh_mnist
-    • make run_lsh_sift
-    • make run_hypercube_mnist
-    • make run_hypercube_sift
-    • make run_ivfflat_mnist
-    • make run_ivfflat_sift
-    • make run_ivfpq_mnist
-    • make run_ivfpq_sift
+Για το compiling χρησιμοποιούμε το κατάλληλο Makefile. Ενδεικτικά targets:
 
-οπου και στην συνέχεια μπορει ο χρήστης να βάλει τους παραμέτρους που θέλει, αλλιως μπαίνουν οι παράμετροι της εκφώνησης. Ακόμα για τον καθαρισμό των directories χρεισημοποιούμε 
-make clean για ολα τα προγράμματα.
-Υπάρχουν και αντίστιχοι κανόνες στο Makefile για εκτελέσεις με valgrind (check_run_*algo_*data), οι οποίες όμως παίρνουν πολύ χρόνο για να τρέξουν.
+```
+make run_lsh_mnist
+make run_lsh_sift
+make run_hypercube_mnist
+make run_hypercube_sift
+make run_ivfflat_mnist
+make run_ivfflat_sift
+make run_ivfpq_mnist
+make run_ivfpq_sift
+```
 
-### Common Parameters:
-    -algo: lsh, hypercube, ivfflat, ivfpq 
-    -d: dataset file path (sift: data/sift/sift_base.fvecs, mnist: data/mnist/train-images.idx3-ubyte)
-    -q: query file path (sift: data/sift/sift_query.fvecs, mnist: data/mnist/query-test/t10k-images.idx3-ubyte)
-    -o: output file path (default: output.txt)
-    -type: dataset type (mnist or sift)
-    -threads: number of threads (default: 1)
+Στη συνέχεια μπορείτε να ορίσετε παραμέτρους διαδραστικά ή μέσω flags· διαφορετικά χρησιμοποιούνται οι παράμετροι της εκφώνησης. Για καθαρισμό:
 
-### CLI Example: 
-```=== ANN Framework ===
+```
+make clean
+```
+
+Υπάρχουν και αντίστοιχα targets για εκτέλεση με Valgrind (`check_run_*algo_*data`), τα οποία απαιτούν σημαντικά περισσότερο χρόνο.
+
+### Common Parameters (CLI)
+
+- `-algo`: lsh | hypercube | ivfflat | ivfpq
+- `-d`: dataset file path (π.χ. SIFT: `data/sift/sift_base.fvecs`, MNIST: `data/mnist/train/train-images.idx3-ubyte`)
+- `-q`: query file path (π.χ. SIFT: `data/sift/sift_query.fvecs`, MNIST: `data/mnist/query-test/t10k-images.idx3-ubyte`)
+- `-o`: output file path (default: `output.txt`)
+- `-type`: dataset type (`mnist` ή `sift`)
+- `-threads`: number of threads (default: 1)
+- `-metric`: l1 | l2 (default: l2)
+- `-N`: πλήθος nearest neighbors
+- `-R`: ακτίνα για range search
+- `-range`: true | false
+
+### CLI Example
+
+```text
+=== ANN Framework ===
 [INPUT] Enter distance metric (l1/l2) (default: l2) (q to quit): l2
 [INPUT] Enter number of threads (default: 1) (q to quit): 10
 [INPUT] Enter number of nearest neighbors N (default: 1) (q to quit): 1
@@ -62,8 +70,9 @@ make clean για ολα τα προγράμματα.
 Execution Time (ms): 100274
 ```
 
-### Output Format Example:
-```
+### Output Format Example
+
+```text
 === RESULTS OF IVFPQ ====
 ===== CONFIGURATION =====
 
@@ -104,12 +113,18 @@ distanceTrue: 229.281479
 
 =============================================================
 ```
-... and so on for all queries
 
-### Datasets:
-Η εργασία αυτή δουεύει πάνω σε δυο αρκετά γνωστά Datasets: 
-    MNIST 60k vectors
-    Sift 1M vectors 
-To sift είναι υπερβολικά μεγάλο για να μπεί στο remote repository οπότε και δεν περιλαμβάνεται. Μπορείτε να το κατεβάσετε από εδώ:http://corpus-texmex.irisa.fr/
-Να γίνει απλά extract στον φάκελο data/sift/
-Για το mnist dataset μπορείτε να χρησιμοποιήσετε τα αρχεία που περιλαμβάνονται στον φάκελο data/mnist.
+... και αντίστοιχα για όλα τα queries. Η μορφή αρχείου εξόδου παράγεται από τον writer στο `src/utils/result_writer.cpp`.
+
+### Datasets
+Οι αλγόριθμοι έχουν δοκιμαστεί με τα εξής datasets:
+- MNIST (60k vectors): χρησιμοποιήστε τα αρχεία στον φάκελο `data/mnist`.
+- SIFT 1M: είναι μεγάλο για το repository. Κατεβάστε από ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz και κάντε extract στον φάκελο `data/sift/` ή χρησιμοποιήστε το παρακάτω shell command:
+
+```bash
+mkdir -p data/sift && wget -P data/sift ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz && tar -xzvf data/sift/sift.tar.gz -C data/sift --strip-components=1 && rm data/sift/sift.tar.gz
+```
+
+Σημειώσεις:
+- Τα Valgrind runs (`check_run_*`) στο `Makefile` είναι αργά.
+- Οι τελικές ρυθμίσεις (config summary) εκτυπώνονται αυτόματα από τον parser.
