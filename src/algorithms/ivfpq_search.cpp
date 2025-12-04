@@ -541,7 +541,7 @@ void IVFPQSearch::initialization() {
     // this is our first centroid
     centroids.push_back(subset_data[static_cast<size_t>(index)]);
 
-    //4. until t==k go to 2.
+    //1. until t==k go to 2.
     for (int t = 1; t < p.kclusters; ++t) {
 
         std::vector<double> D(subset_count, std::numeric_limits<double>::max()); // distance vector
@@ -549,7 +549,7 @@ void IVFPQSearch::initialization() {
 
         double sum_D_squared = 0.0;
 
-        //2. every non-centroid find min distance from centroids
+        //2. For every non-centroid find min distance from centroids
         // if it is centroid then the distance is zero  
         // and the probability of being chosen is zero
         for (int i = 0; i < subset_count; ++i) {
