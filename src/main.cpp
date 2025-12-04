@@ -17,6 +17,92 @@
 #include "../include/common/metrics.h"
 #include "../include/common/evaluation_metrics.h"
 
+// --- Helper Functions for Caching Ground Truth ---
+
+void save_ground_truth(const std::string& filename, const std::vector<SearchResult>& results, double total_time_ms) {
+    std::ofstream out(filename, std::ios::binary);
+    if (!out) {
+        std::cerr << "[Cache] Error: Could not save to " << filename << "\n";
+        return;
+    }
+
+    // 1. Save total execution time
+    out.write(reinterpret_cast<const char*>(&total_time_ms), sizeof(total_time_ms));
+
+    // 2. Save number of queries
+    size_t size = results.size();
+    out.write(reinterpret_cast<const char*>(&size), sizeof(size));
+
+    // 3. Save each result
+    for (const auto& res : results) {
+        out.write(reinterpret_cast<const char*>(&res.query_id), sizeof(res.query_id));
+        out.write(reinterpret_cast<const char*>(&res.time_ms), sizeof(res.time_ms));
+
+        // Neighbors
+        size_t n_size = res.neighbor_ids.size();
+        out.write(reinterpret_cast<const char*>(&n_size), sizeof(n_size));
+        if (n_size > 0) out.write(reinterpret_cast<const char*>(res.neighbor_ids.data()), n_size * sizeof(int));
+
+        // Distances
+        size_t d_size = res.distances.size();
+        out.write(reinterpret_cast<const char*>(&d_size), sizeof(d_size));
+        if (d_size > 0) out.write(reinterpret_cast<const char*>(res.distances.data()), d_size * sizeof(float));
+
+        // Range Neighbors
+        size_t rn_size = res.range_neighbor_ids.size();
+        out.write(reinterpret_cast<const char*>(&rn_size), sizeof(rn_size));
+        if (rn_size > 0) out.write(reinterpret_cast<const char*>(res.range_neighbor_ids.data()), rn_size * sizeof(int));
+
+        // Range Distances
+        size_t rd_size = res.range_distances.size();
+        out.write(reinterpret_cast<const char*>(&rd_size), sizeof(rd_size));
+        if (rd_size > 0) out.write(reinterpret_cast<const char*>(res.range_distances.data()), rd_size * sizeof(float));
+    }
+    std::cout << "[Cache] Saved ground truth to " << filename << "\n";
+}
+
+bool load_ground_truth(const std::string& filename, std::vector<SearchResult>& results, double& total_time_ms) {
+    std::ifstream in(filename, std::ios::binary);
+    if (!in) return false;
+
+    // 1. Load total execution time
+    in.read(reinterpret_cast<char*>(&total_time_ms), sizeof(total_time_ms));
+
+    // 2. Load number of queries
+    size_t size;
+    in.read(reinterpret_cast<char*>(&size), sizeof(size));
+    results.resize(size);
+
+    // 3. Load each result
+    for (auto& res : results) {
+        in.read(reinterpret_cast<char*>(&res.query_id), sizeof(res.query_id));
+        in.read(reinterpret_cast<char*>(&res.time_ms), sizeof(res.time_ms));
+
+        size_t count;
+        
+        // Neighbors
+        in.read(reinterpret_cast<char*>(&count), sizeof(count));
+        res.neighbor_ids.resize(count);
+        if (count > 0) in.read(reinterpret_cast<char*>(res.neighbor_ids.data()), count * sizeof(int));
+
+        // Distances
+        in.read(reinterpret_cast<char*>(&count), sizeof(count));
+        res.distances.resize(count);
+        if (count > 0) in.read(reinterpret_cast<char*>(res.distances.data()), count * sizeof(float));
+
+        // Range Neighbors
+        in.read(reinterpret_cast<char*>(&count), sizeof(count));
+        res.range_neighbor_ids.resize(count);
+        if (count > 0) in.read(reinterpret_cast<char*>(res.range_neighbor_ids.data()), count * sizeof(int));
+
+        // Range Distances
+        in.read(reinterpret_cast<char*>(&count), sizeof(count));
+        res.range_distances.resize(count);
+        if (count > 0) in.read(reinterpret_cast<char*>(res.range_distances.data()), count * sizeof(float));
+    }
+    return true;
+}
+
 /* 
     Clustering and Similarity Search Algorithms 
 
@@ -63,27 +149,75 @@ int main(int argc, char** argv) {
     approx->build_index(dataset);
     std::cout << "sanity check" << std::endl;
 
-    // Create ground truth and configure (brute)
-    auto truth = std::make_unique<BruteForceSearch>();
-    truth->configure(args);
-    truth->build_index(dataset);
+    // --- Ground Truth Logic with Caching ---
+    
+    std::vector<SearchResult> truth_results;
+    double truth_time_ms = 0.0;
 
-    // Run Ground Truth (brute)
-    std::cout << "[Main] Running truth (BruteForce) ...\n";
-    auto t0 = std::chrono::high_resolution_clock::now();
-    auto truth_results = run_parallel_search(truth.get(), queries, args.threads, params);
-    auto t1 = std::chrono::high_resolution_clock::now();
-    double truth_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    std::cout << "[Main] Truth (BruteForce) search completed in " << truth_time_ms / 1000 << " sec\n";
+    // 1. Construct filename: val/truth_<type>_N_<N>_R_<R>.bin
+    std::filesystem::create_directory("val"); // Ensure directory exists
+    double r_val = args.range ? args.R : 0.0;
+    std::string cache_filename = "val/truth_" + args.type + "_N_" + std::to_string(args.N) + "_R_" + std::to_string(r_val) + ".bin";
 
+    // 2. Try to load from file
+    bool loaded = false;
+    if (std::filesystem::exists(cache_filename)) {
+        std::cout << "[Main] Found cached ground truth: " << cache_filename << "\n";
+        if (load_ground_truth(cache_filename, truth_results, truth_time_ms)) {
+            std::cout << "[Main] Successfully loaded " << truth_results.size() << " cached results.\n";
+            loaded = true;
+        } else {
+            std::cerr << "[Main] Failed to load cache (corrupted?), re-running BruteForce.\n";
+        }
+    }
+
+    // 3. If not loaded, run BruteForce and save
+    if (!loaded) {
+        // Create ground truth and configure (brute)
+        auto truth = std::make_unique<BruteForceSearch>();
+        truth->configure(args);
+        truth->build_index(dataset);
+
+        std::cout << "[Main] Running truth (BruteForce) ...\n";
+        auto t0 = std::chrono::high_resolution_clock::now();
+        truth_results = run_parallel_search(truth.get(), queries, args.threads, params);
+        auto t1 = std::chrono::high_resolution_clock::now();
+        double wall_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        
+        std::cout << "[Main] Truth (BruteForce) search completed in " << wall_time_ms / 1000 << " sec\n";
+        
+        // Recalculate truth_time_ms as sum of individual query times for accurate average
+        truth_time_ms = 0.0;
+        for (const auto& r : truth_results) {
+            truth_time_ms += r.time_ms;
+        }
+
+        // Save to cache
+        save_ground_truth(cache_filename, truth_results, truth_time_ms);
+    } else {
+        // Recalculate truth_time_ms from loaded results to ensure it's the sum of latencies
+        // (in case the file stored wall-clock time)
+        truth_time_ms = 0.0;
+        for (const auto& r : truth_results) {
+            truth_time_ms += r.time_ms;
+        }
+    }
+    
     // Run Given Algorithm (approx)
     std::cout << "[Main] Running approx (" << args.algo << ") ...\n";
     auto ta0 = std::chrono::high_resolution_clock::now();
     auto approx_results = run_parallel_search(approx.get(), queries, args.threads, params);
     auto ta1 = std::chrono::high_resolution_clock::now();
-    double approx_time_ms = std::chrono::duration<double, std::milli>(ta1 - ta0).count();
-    std::cout << "[Main] Approx search completed in " << approx_time_ms / 1000 << " sec\n";
-    std::cout << "[Main] Mean Approx search " << approx_time_ms / 10000000 << " sec\n";
+    double approx_wall_ms = std::chrono::duration<double, std::milli>(ta1 - ta0).count();
+    std::cout << "[Main] Approx search completed in " << approx_wall_ms / 1000 << " sec\n";
+
+    // Calculate approx_time_ms as sum of individual query times
+    double approx_time_ms = 0.0;
+    for (const auto& r : approx_results) {
+        approx_time_ms += r.time_ms;
+    }
+
+    std::cout << "[Main] Mean Approx search " << (approx_results.empty() ? 0.0 : approx_time_ms / approx_results.size() / 1000.0) << " sec\n";
 
     // Evaluate
     auto eval = evaluate_results(approx_results, truth_results, args.N, approx_time_ms, truth_time_ms);

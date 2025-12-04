@@ -30,8 +30,17 @@ EvalResults evaluate_results(const std::vector<SearchResult>& approx,
         for (int j=0;j<lim;++j) true_ids.insert(t.neighbor_ids[j]);
 
         int hits = 0;
-        for (int id : a.neighbor_ids) if (true_ids.count(id)) ++hits;
-        recall_sum += (double)hits / (double)N;
+        // Strictly check only the top N approximate neighbors (Recall@N)
+        int k_approx = std::min(N, (int)a.neighbor_ids.size());
+        for (int k = 0; k < k_approx; ++k) {
+            if (true_ids.count(a.neighbor_ids[k])) ++hits;
+        }
+
+        // Recall = (Relevant Retrieved) / (Total Relevant)
+        if (lim > 0) {
+            recall_sum += (double)hits / (double)lim;
+        }
+
         tapprox_sum += a.time_ms;
         ttrue_sum += t.time_ms;
     }

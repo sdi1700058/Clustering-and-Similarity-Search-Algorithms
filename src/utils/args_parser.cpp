@@ -120,6 +120,8 @@ Args parse_args(int argc, char** argv) {
                 << "  N=" << args.N << " R=" << args.R
                 << " Range=" << (args.range ? "true" : "false")
                 << "  Seed=" << args.seed << " k=" << args.k << " L=" << args.L << " w=" << args.w << "\n";
+        args.config_summary = info.str();
+        std::cout << args.config_summary;
     } else if (args.algo == "hypercube") {
         std::ostringstream info;
         info << "\n[INFO] Using configuration:\n"
