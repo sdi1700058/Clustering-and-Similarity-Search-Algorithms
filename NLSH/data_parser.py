@@ -1,6 +1,3 @@
-```
-
-
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader
@@ -22,7 +19,7 @@ def read_idx(filename):
         # Read the actual data
         data = np.frombuffer(f.read(), dtype=np.uint8).reshape(shape)
         
-        return data
+    return data
 
 
 def read_fvecs(filename):
@@ -100,4 +97,3 @@ def build_parser():
     args = parser.parse_args()
 
     return args
-```

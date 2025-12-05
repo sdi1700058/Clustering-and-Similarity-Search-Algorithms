@@ -1,4 +1,4 @@
-```import numpy as np
+import numpy as np
 from collections import defaultdict
 
 
@@ -151,7 +151,3 @@ def myCSR(indices):
     adjcwgt = np.array(adjcwgt, dtype=np.float32) # distances as floats "
     end_time = time.time()
     print(f"CSR completed in {end_time - start_time:.2f} seconds \n")
-
-
-
-```
