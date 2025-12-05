@@ -212,6 +212,28 @@ check_run_ivfpq_sift: $(TARGET)
 	echo "Running $(TARGET) -> $$out"; \
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(TARGET) -algo ivfpq -d data/sift/sift_base
 
+run_brute_mnist: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/brute_mnist_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/brute_mnist_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	$(TARGET) -algo brute -d data/mnist/train/train-images.idx3-ubyte -q data/mnist/query-test/t10k-images.idx3-ubyte -o $$out -type mnist
+
+run_brute_sift: $(TARGET)
+	@mkdir -p output
+	@i=$$(ls output/brute_sift_*.txt 2>/dev/null \
+		| sed -n 's/.*_\([0-9][0-9]*\)\.txt/\1/p' \
+		| sort -n \
+		| tail -n1); \
+	if [ -z "$$i" ]; then i=1; else i=$$((i+1)); fi; \
+	out=output/brute_sift_$$i.txt; \
+	echo "Running $(TARGET) -> $$out"; \
+	$(TARGET) -algo brute -d data/sift/sift_base.fvecs -q data/sift/sift_query.fvecs -o $$out -type sift
+
 format:
 	clang-format -i $(SOURCES)
 

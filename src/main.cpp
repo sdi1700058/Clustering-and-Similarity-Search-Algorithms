@@ -158,7 +158,6 @@ int main(int argc, char** argv) {
     std::filesystem::create_directory("val"); // Ensure directory exists
     double r_val = args.range ? args.R : 0.0;
     std::string cache_filename = "val/truth_" + args.type + "_N_" + std::to_string(args.N) + "_R_" + std::to_string(r_val) + ".bin";
-
     // 2. Try to load from file
     bool loaded = false;
     if (std::filesystem::exists(cache_filename)) {
