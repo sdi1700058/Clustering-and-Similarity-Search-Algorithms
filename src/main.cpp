@@ -202,6 +202,18 @@ int main(int argc, char** argv) {
         }
     }
     
+    if (args.algo == "brute") {
+        auto eval = evaluate_results(truth_results, truth_results, args.N, truth_time_ms, truth_time_ms);
+        write_results(truth_results, args.output_path, "BruteForce", truth_time_ms, args.config_summary, &truth_results, &eval);
+        std::cout << "[Summary] Method=BruteForce\n"
+                    << " AF=" << eval.average_AF << "\n"
+                    << " Recall@" << args.N << "=" << eval.recall_at_N
+                    << " QPS=" << eval.qps << "\n"
+                    << " tApproxAvg=" << eval.tApproxAvg << "ms" << "\n"
+                    << " tTrueAvg=" << eval.tTrueAvg << "ms\n";
+        return 0;
+    }
+
     // Run Given Algorithm (approx)
     std::cout << "[Main] Running approx (" << args.algo << ") ...\n";
     auto ta0 = std::chrono::high_resolution_clock::now();
