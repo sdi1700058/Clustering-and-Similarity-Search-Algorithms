@@ -7,7 +7,7 @@ def build_kahip_graph_no_csr(indices, k):
     Weights: 2 if mutual neighbor, 1 if one-sided.
     """
     n = indices.shape[0]
-    print(f"Building graph for {n} points with k={k}...")
+    print(f"Converting graph for KaHIP for {n} points with k={k}...")
 
     # Use a dictionary to count edge occurrences: (u, v) -> count
     edge_counts = defaultdict(int)

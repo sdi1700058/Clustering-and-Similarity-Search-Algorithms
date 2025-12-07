@@ -11,6 +11,7 @@ import subprocess
 import sys
 import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors
+from sklearn.model_selection import train_test_split
 
 # Local imports
 from data_parser import get_dataset, build_parser, parse_cpp_output, save_knn_graph, load_knn_graph, get_unique_filename
@@ -71,7 +72,7 @@ def main():
             
         elif args.graph_method == "cpp_subprocess":
             # Use absolute path to avoid C++ filesystem error on empty parent path
-            temp_output = os.path.abspath("temp_knn_graph.txt")
+            temp_output = os.path.abspath("temp_cpp_knn_output.txt")
             
             # Request k+1 neighbors to account for self-loops
             k_req = args.knn + 1
@@ -89,6 +90,12 @@ def main():
                 "-range", "false",     # Disable range search for graph construction
                 "-R", "0.0"
             ]
+
+            # Pass IVFFlat specific arguments if that algo is chosen
+            if args.cpp_algo == "ivfflat":
+                cmd.extend(["-kclusters", str(args.kclusters)])
+                cmd.extend(["-nprobe", str(args.nprobe)])
+
             print(f"Running C++ subprocess: {' '.join(cmd)}")
             try:
                 subprocess.run(cmd, check=True)
@@ -96,8 +103,8 @@ def main():
                 raw_indices = parse_cpp_output(temp_output, n_samples, k_req)
                 indices = raw_indices[:, 1:] 
                 
-                if os.path.exists(temp_output):
-                    os.remove(temp_output)
+                #if os.path.exists(temp_output):
+                #    os.remove(temp_output)
             except subprocess.CalledProcessError as e:
                 print(f"Error running C++ executable: {e}")
                 sys.exit(1)
@@ -154,6 +161,17 @@ def main():
 
     # 5. Train Classifier
     print("Training Neural Classifier...")
+    
+    # Split into Train and Validation sets (90% Train, 10% Val)
+    indices_all = np.arange(n_samples)
+    train_idx, val_idx = train_test_split(indices_all, test_size=0.1, random_state=args.seed)
+    
+    train_dataset = TensorDataset(X_train[train_idx], labels[train_idx])
+    val_dataset = TensorDataset(X_train[val_idx], labels[val_idx])
+    
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+
     hidden_units = [args.nodes] * (max(1, args.layers - 1))
     
     model = MLPClassifier(
@@ -167,53 +185,106 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
     
-    dataset = TensorDataset(X_train, labels)
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    
-    model.train()
     start_time = time.time()
-    epoch_losses = [] # Store losses for plotting
+    
+    # Metrics storage
+    history = {
+        'train_loss': [], 'val_loss': [],
+        'train_acc': [], 'val_acc': []
+    }
 
     for epoch in range(args.epochs):
+        # --- Training Phase ---
+        model.train()
         total_loss = 0
-        for batch_x, batch_y in loader:
+        correct_train = 0
+        total_train = 0
+        
+        for batch_x, batch_y in train_loader:
             optimizer.zero_grad()
             outputs = model(batch_x)
             loss = criterion(outputs, batch_y)
             loss.backward()
             optimizer.step()
+            
             total_loss += loss.item()
+            
+            # Accuracy
+            _, predicted = torch.max(outputs.data, 1)
+            total_train += batch_y.size(0)
+            correct_train += (predicted == batch_y).sum().item()
         
-        avg_loss = total_loss / len(loader)
-        epoch_losses.append(avg_loss)
-        print(f"Epoch {epoch+1}/{args.epochs}, Loss: {avg_loss:.4f}")
+        avg_train_loss = total_loss / len(train_loader)
+        train_acc = correct_train / total_train
+        
+        # --- Validation Phase ---
+        model.eval()
+        val_loss = 0
+        correct_val = 0
+        total_val = 0
+        
+        with torch.no_grad():
+            for batch_x, batch_y in val_loader:
+                outputs = model(batch_x)
+                loss = criterion(outputs, batch_y)
+                val_loss += loss.item()
+                
+                _, predicted = torch.max(outputs.data, 1)
+                total_val += batch_y.size(0)
+                correct_val += (predicted == batch_y).sum().item()
+        
+        avg_val_loss = val_loss / len(val_loader)
+        val_acc = correct_val / total_val
+        
+        # Store metrics
+        history['train_loss'].append(avg_train_loss)
+        history['val_loss'].append(avg_val_loss)
+        history['train_acc'].append(train_acc)
+        history['val_acc'].append(val_acc)
+        
+        print(f"Epoch {epoch+1}/{args.epochs} | "
+              f"Train Loss: {avg_train_loss:.4f} Acc: {train_acc:.4f} | "
+              f"Val Loss: {avg_val_loss:.4f} Acc: {val_acc:.4f}")
     
     print(f"Training completed in {time.time() - start_time:.2f}s")
 
-    # --- PLOT: Learning Curve ---
-    plt.figure(figsize=(10, 6))
-    plt.plot(range(1, args.epochs + 1), epoch_losses, marker='o', linestyle='-', color='b')
-    plt.xlabel('Epoch')
-    plt.ylabel('Cross Entropy Loss')
-    plt.title(f'Training Loss (Layers={args.layers}, Nodes={args.nodes}, LR={args.lr})')
-    plt.grid(True)
+    # --- PLOT: Learning Curves (Loss & Accuracy) ---
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Loss Plot
+    ax1.plot(range(1, args.epochs + 1), history['train_loss'], label='Train Loss', marker='o')
+    ax1.plot(range(1, args.epochs + 1), history['val_loss'], label='Val Loss', marker='x')
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Cross Entropy Loss')
+    ax1.set_title(f'Loss Curve (L={args.layers}, N={args.nodes})')
+    ax1.legend()
+    ax1.grid(True)
+    
+    # Accuracy Plot
+    ax2.plot(range(1, args.epochs + 1), history['train_acc'], label='Train Acc', marker='o')
+    ax2.plot(range(1, args.epochs + 1), history['val_acc'], label='Val Acc', marker='x')
+    ax2.set_xlabel('Epoch')
+    ax2.set_ylabel('Accuracy')
+    ax2.set_title(f'Accuracy Curve (LR={args.lr})')
+    ax2.legend()
+    ax2.grid(True)
     
     # Unique filename with params
-    base_loss_name = f"training_loss_{dataset_name}_L{args.layers}_N{args.nodes}_E{args.epochs}_B{args.batch_size}_LR{args.lr}_seed{args.seed}.png"
-    plot_path = get_unique_filename(os.path.join(fig_dir, base_loss_name))
+    base_lc_name = f"learning_curve_{dataset_name}_L{args.layers}_N{args.nodes}_E{args.epochs}_seed{args.seed}.png"
+    plot_path = get_unique_filename(os.path.join(fig_dir, base_lc_name))
     
     plt.savefig(plot_path)
     plt.close()
-    print(f"Saved training loss plot to {plot_path}")
+    print(f"Saved learning curve plot to {plot_path}")
     # ----------------------------
 
     # 6. Save Index
     # Ensure directory exists for index path
-    index_dir = os.path.dirname(args.index_path)
+    index_dir = os.path.dirname(args.index)
     if index_dir:
         os.makedirs(index_dir, exist_ok=True)
 
-    model_path = f"{args.index_path}_model.pth"
+    model_path = f"{args.index}_model.pth"
     torch.save({
         "model_state": model.state_dict(),
         "config": {
@@ -231,11 +302,42 @@ def main():
         idxs = np.where(blocks_np == i)[0].tolist()
         inverted_file[i] = idxs
         
-    index_file_path = f"{args.index_path}_index.pkl"
+    # Calculate Bin Statistics
+    bin_sizes = [len(idxs) for idxs in inverted_file.values()]
+    bin_min = np.min(bin_sizes) if bin_sizes else 0
+    bin_max = np.max(bin_sizes) if bin_sizes else 0
+    bin_mean = np.mean(bin_sizes) if bin_sizes else 0
+    bin_median = np.median(bin_sizes) if bin_sizes else 0
+    non_empty_bins = sum(1 for s in bin_sizes if s > 0)
+    
+    print(f"\n[Index Stats] Bins: {args.m} | Non-empty: {non_empty_bins}")
+    print(f"[Index Stats] Size -> Min: {bin_min}, Max: {bin_max}, Mean: {bin_mean:.1f}, Median: {bin_median}")
+
+    index_file_path = f"{args.index}_index.pkl"
     with open(index_file_path, "wb") as f:
         pickle.dump(inverted_file, f)
+
+    # Save Configuration Text File
+    config_path = f"{args.index}_config.txt"
+    with open(config_path, "w") as f:
+        f.write(f"m: {args.m}\n")
+        f.write(f"imbalance: {args.imbalance}\n")
+        f.write(f"kahip_mode: {args.kahip_mode}\n")
+        f.write(f"layers: {args.layers}\n")
+        f.write(f"nodes: {args.nodes}\n")
+        f.write(f"epochs: {args.epochs}\n")
+        f.write(f"batch_size: {args.batch_size}\n")
+        f.write(f"lr: {args.lr}\n")
+        f.write(f"seed: {args.seed}\n")
+        f.write(f"final_train_acc: {history['train_acc'][-1]:.4f}\n")
+        f.write(f"final_val_acc: {history['val_acc'][-1]:.4f}\n")
+        f.write(f"bin_min: {bin_min}\n")
+        f.write(f"bin_max: {bin_max}\n")
+        f.write(f"bin_mean: {bin_mean:.2f}\n")
+        f.write(f"bin_median: {bin_median}\n")
+        f.write(f"non_empty_bins: {non_empty_bins}\n")
         
-    print(f"Index saved to {model_path} and {index_file_path}")
+    print(f"Index saved to {model_path}, {index_file_path}, and {config_path}")
 
 if __name__ == "__main__":
     main()

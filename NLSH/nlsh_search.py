@@ -200,7 +200,7 @@ def calculate_metrics(results, true_dists, true_indices, n_query, N):
     
     return avg_af, recall, af_values
 
-def write_output_file(filename, results, metrics, args, true_dists):
+def write_output_file(filename, results, metrics, args, true_dists, index_stats=None):
     """Writes the results to the output file in the specified format."""
         # Ensure output directory exists
     out_dir = os.path.dirname(filename)
@@ -209,7 +209,26 @@ def write_output_file(filename, results, metrics, args, true_dists):
         
     print(f"[Output] Writing results to {filename}...")
     with open(filename, 'w') as f:
-        f.write("METHOD [Neural LSH]\n")
+        f.write("===== Results of Neural LSH =====\n")
+        f.write("===== CONFIGURATION =====\n")
+        f.write(f"Dataset: {args.dataset}\n")
+        f.write(f"Query: {args.query}\n")
+        f.write(f"N (Neighbors): {args.N}\n")
+        f.write(f"T (Probed Bins): {args.T}\n")
+        f.write(f"Model Path: {args.index}_model.pth\n")
+        
+        if index_stats:
+            f.write(f"Index Bins: {index_stats['total_bins']} (Non-empty: {index_stats['non_empty']})\n")
+            f.write(f"Bin Sizes: Min={index_stats['min']}, Max={index_stats['max']}, "
+                    f"Mean={index_stats['mean']:.2f}, Median={index_stats['median']}\n")
+
+        # Read and append config file
+        config_path = f"{args.index}_config.txt"
+        if os.path.exists(config_path):
+            f.write("\n--- Build Configuration ---\n")
+            with open(config_path, "r") as cf:
+                f.write(cf.read())
+        
         f.write("===== EVALUATION =====\n")
         f.write(f"Average AF: {metrics['avg_af']:.6f}\n")
         f.write(f"Recall@N: {metrics['recall']:.6f}\n")
@@ -266,11 +285,11 @@ def main():
     X_query = torch.from_numpy(X_query_np).to(device)
 
     # 3. Load Index (Model + Inverted File)
-    model_path = f"{args.index_path}_model.pth"
-    index_path = f"{args.index_path}_index.pkl"
+    model_path = f"{args.index}_model.pth"
+    index_path = f"{args.index}_index.pkl"
 
     if not os.path.exists(model_path) or not os.path.exists(index_path):
-        print(f"Error: Index files not found at prefix {args.index_path}")
+        print(f"Error: Index files not found at prefix {args.index}")
         print(f"Expected: {model_path} and {index_path}")
         sys.exit(1)
 
@@ -292,6 +311,22 @@ def main():
     print(f"[Main] Loading inverted file from {index_path}...")
     with open(index_path, "rb") as f:
         inverted_file = pickle.load(f)
+
+    # Calculate Index Statistics
+    bin_sizes = [len(v) for v in inverted_file.values()]
+    # If inverted_file only contains non-empty bins, we might need to know total m from config
+    # But for stats of *populated* bins, this is sufficient.
+    # Assuming inverted_file keys are 0..m-1 or sparse.
+    # Let's calculate stats on the populated bins.
+    index_stats = {
+        'total_bins': len(inverted_file), # This counts keys in dict
+        'non_empty': sum(1 for x in bin_sizes if x > 0),
+        'min': np.min(bin_sizes) if bin_sizes else 0,
+        'max': np.max(bin_sizes) if bin_sizes else 0,
+        'mean': np.mean(bin_sizes) if bin_sizes else 0.0,
+        'median': np.median(bin_sizes) if bin_sizes else 0.0
+    }
+    print(f"[Index Stats] Populated Bins: {index_stats['non_empty']}, Mean Size: {index_stats['mean']:.2f}")
 
     # 4. Ground Truth (Exact Search)
     true_dists, true_indices, t_true_avg = load_or_compute_ground_truth(
@@ -316,7 +351,7 @@ def main():
     }
 
     # 7. Write Results
-    write_output_file(args.output, search_results, metrics, args, true_dists)
+    write_output_file(args.output, search_results, metrics, args, true_dists, index_stats)
     
     # --- PLOT: Approximation Factor Distribution ---
     fig_dir = os.path.join(os.path.dirname(__file__), "fig")

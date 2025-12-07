@@ -124,8 +124,8 @@ def build_parser():
     parser = argparse.ArgumentParser(description="NLSH Index Builder")
     # Required
     parser.add_argument("-d", "--dataset", type=str, required=True, help="Path to dataset file")
-    parser.add_argument("-i", "--index_path", type=str, required=True, help="Path prefix to save index files")
-    parser.add_argument("-type", "--type", type=str, required=True, choices=["mnist", "sift"], help="Dataset type")
+    parser.add_argument("-i", "--index", type=str, required=True, help="Path prefix to save index files")
+    parser.add_argument("-type", "--type", type=str, default="mnist", choices=["mnist", "sift"], help="Dataset type")
     
     # Graph Construction
     parser.add_argument("--knn", type=int, default=10, help="Number of neighbors k for graph")
@@ -135,6 +135,10 @@ def build_parser():
     parser.add_argument("--cpp_bin", type=str, default="../bin/search", help="Path to C++ executable")
     parser.add_argument("--cpp_algo", type=str, default="brute", choices=["brute", "lsh", "hypercube", "ivfflat", "ivfpq"], 
                         help="Algorithm to use if running C++ subprocess")
+    
+    # IVFFlat specific arguments for graph construction
+    parser.add_argument("--kclusters", type=int, default=50, help="Number of clusters for IVFFlat")
+    parser.add_argument("--nprobe", type=int, default=5, help="Number of probes for IVFFlat")
 
     # KaHIP Options
     parser.add_argument("-m", "--m", type=int, default=100, help="Number of partitions (blocks)")
@@ -156,19 +160,19 @@ def search_parser():
     # Required
     parser.add_argument("-d", "--dataset", type=str, required=True, help="Path to dataset file")
     parser.add_argument("-q", "--query", type=str, required=True, help="Path to query file")
-    parser.add_argument("-i", "--index_path", type=str, required=True, help="Path prefix of the index")
+    parser.add_argument("-i", "--index", type=str, required=True, help="Path prefix of the index")
     parser.add_argument("-o", "--output", type=str, required=True, help="Output file path")
-    parser.add_argument("-type", "--type", type=str, required=True, choices=["mnist", "sift"], help="Dataset type")
+    parser.add_argument("-type", "--type", type=str, default="mnist", choices=["mnist", "sift"], help="Dataset type")
     
     # Search Parameters
     parser.add_argument("-N", type=int, default=1, help="Number of nearest neighbors")
     parser.add_argument("-R", type=float, help="Range search radius")
     parser.add_argument("-T", type=int, default=5, help="Number of probes (bins)")
-    parser.add_argument("-range", type=str, default="true", help="Enable range search (true/false)")
+    parser.add_argument("-range", type=str, default="false", help="Enable range search (true/false)")
     
     args = parser.parse_args()
     
-    # Handle boolean string for range
+    # Handle boolean string for range correctly
     args.range = args.range.lower() in ('true', '1', 'yes')
 
     # Set default R if not provided
