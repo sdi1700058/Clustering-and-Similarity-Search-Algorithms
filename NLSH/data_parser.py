@@ -54,8 +54,25 @@ def get_dataset(DataType, file_path):
         data = read_fvecs(file_path)
         return data
 
+    elif DataType in ["protein", "generic"]:
+        if file_path.endswith('.fvecs'):
+            return read_fvecs(file_path)
+        # Attempt to load as .npy
+        try:
+            data = np.load(file_path, allow_pickle=True)
+        except Exception:
+            # Fallback to fvecs if naming doesn't match but content does? Unlikely.
+            # Just raise or retry.
+            raise
+            
+        # Ensure float32
+        if data.dtype != np.float32:
+            data = data.astype(np.float32)
+        return data
+
     else:
         raise ValueError(f"Unknown dataset type: {DataType}")
+
 
 def parse_cpp_output(filename, n_samples, k):
     """
@@ -125,7 +142,7 @@ def build_parser():
     # Required
     parser.add_argument("-d", "--dataset", type=str, required=True, help="Path to dataset file")
     parser.add_argument("-i", "--index", type=str, required=True, help="Path prefix to save index files")
-    parser.add_argument("-type", "--type", type=str, default="mnist", choices=["mnist", "sift"], help="Dataset type")
+    parser.add_argument("-type", "--type", type=str, default="mnist", help="Dataset type")
     
     # Graph Construction
     parser.add_argument("--knn", type=int, default=10, help="Number of neighbors k for graph")
@@ -162,13 +179,14 @@ def search_parser():
     parser.add_argument("-q", "--query", type=str, required=True, help="Path to query file")
     parser.add_argument("-i", "--index", type=str, required=True, help="Path prefix of the index")
     parser.add_argument("-o", "--output", type=str, required=True, help="Output file path")
-    parser.add_argument("-type", "--type", type=str, default="mnist", choices=["mnist", "sift"], help="Dataset type")
+    parser.add_argument("-type", "--type", type=str, default="mnist", help="Dataset type")
     
     # Search Parameters
     parser.add_argument("-N", type=int, default=1, help="Number of nearest neighbors")
     parser.add_argument("-R", type=float, help="Range search radius")
     parser.add_argument("-T", type=int, default=5, help="Number of probes (bins)")
     parser.add_argument("-range", type=str, default="false", help="Enable range search (true/false)")
+    parser.add_argument("-metric", type=str, default="l2", choices=["l2", "cosine"], help="Distance metric")
     
     args = parser.parse_args()
     

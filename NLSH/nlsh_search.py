@@ -6,13 +6,15 @@ import pickle
 import sys
 import os
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 # Local imports
 from data_parser import get_dataset, search_parser, get_unique_filename
 from models import MLPClassifier
 
 # --- Constants & Configuration ---
-CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+CACHE_DIR = os.path.join(ROOT_DIR, "cache")
 GT_CACHE_DIR = os.path.join(CACHE_DIR, "ground_truth")
 
 def ensure_directories():
@@ -26,9 +28,10 @@ def load_or_compute_ground_truth(X_data, X_query, args, device):
     """
     dataset_name = os.path.splitext(os.path.basename(args.dataset))[0]
     query_name = os.path.splitext(os.path.basename(args.query))[0]
+    metric_tag = getattr(args, 'metric', 'l2')
     
     # Cache filename includes N to ensure we have enough neighbors
-    cache_filename = f"gt_{dataset_name}_{query_name}_N{args.N}.npz"
+    cache_filename = f"gt_{dataset_name}_{query_name}_N{args.N}_{metric_tag}.npz"
     cache_path = os.path.join(GT_CACHE_DIR, cache_filename)
 
     if os.path.exists(cache_path):
@@ -50,14 +53,28 @@ def load_or_compute_ground_truth(X_data, X_query, args, device):
     true_dists_list = []
     batch_size = 100 # Conservative batch size for distance matrix calculation
     
+    # Pre-normalize for cosine if needed
+    if metric_tag == 'cosine':
+        X_data_norm = torch.nn.functional.normalize(X_data, p=2, dim=1)
+    
     # Brute force search using PyTorch
     with torch.no_grad():
         for i in range(0, len(X_query), batch_size):
             batch_q = X_query[i : i + batch_size]
-            # Euclidean distance: ||a - b||
-            dists = torch.cdist(batch_q, X_data)
+            
+            if metric_tag == 'cosine':
+                batch_q_norm = torch.nn.functional.normalize(batch_q, p=2, dim=1)
+                # Similarity = A . B^T
+                sim = torch.mm(batch_q_norm, X_data_norm.t())
+                # Dist = 1 - Sim
+                dists = 1.0 - sim
+            else:
+                # Euclidean distance: ||a - b||
+                dists = torch.cdist(batch_q, X_data)
+                
             # Top-N smallest distances
-            vals, inds = torch.topk(dists, args.N, dim=1, largest=False)
+            k_val = min(args.N, dists.shape[1])
+            vals, inds = torch.topk(dists, k_val, dim=1, largest=False)
             
             true_dists_list.append(vals)
             true_indices_list.append(inds)
@@ -90,71 +107,85 @@ def run_neural_lsh(model, inverted_file, X_data, X_query, args, device):
     
     print(f"[NeuralLSH] Running search (T={args.T}, N={args.N})...")
 
-    with torch.no_grad():
-        for i in range(0, n_query, batch_size):
-            end_idx = min(i + batch_size, n_query)
-            batch_q = X_query[i:end_idx]
-            current_batch_size = end_idx - i
-            
-            # --- Start Timer ---
-            t0_batch = time.time()
-            
-            # 1. Model Prediction (Forward Pass)
-            logits = model(batch_q)
-            probs = torch.softmax(logits, dim=1)
-            # Get top T bins
-            top_bins = torch.topk(probs, args.T, dim=1).indices.cpu().numpy()
-            
-            # Process each query in the batch
-            for j in range(current_batch_size):
-                q_idx = i + j
-                bins = top_bins[j]
-                
-                # 2. Candidate Collection
-                candidates = []
-                for b in bins:
-                    if b in inverted_file:
-                        candidates.extend(inverted_file[b])
-                
-                # Remove duplicates
-                candidates = list(set(candidates))
-                
-                res_indices = []
-                res_dists = []
-                range_neighbors = []
-                
-                # 3. Exact Search on Candidates
-                if len(candidates) > 0:
-                    cand_tensor = torch.tensor(candidates, dtype=torch.long, device=device)
-                    cand_vecs = X_data[cand_tensor]
-                    q_vec = batch_q[j].unsqueeze(0)
-                    
-                    # Compute distances to candidates
-                    dists_cand = torch.cdist(q_vec, cand_vecs).squeeze(0)
-                    
-                    # Find nearest N among candidates
-                    k_approx = min(args.N, len(candidates))
-                    vals, inds = torch.topk(dists_cand, k_approx, largest=False)
-                    
-                    res_indices = cand_tensor[inds].cpu().tolist()
-                    res_dists = vals.cpu().tolist()
-                    
-                    # 4. Range Search (Optional)
-                    if args.range:
-                        mask = dists_cand <= args.R
-                        range_inds = torch.nonzero(mask).squeeze(1)
-                        range_neighbors = cand_tensor[range_inds].cpu().tolist()
-                
-                results.append({
-                    'q_idx': q_idx,
-                    'indices': res_indices,
-                    'dists': res_dists,
-                    'range_neighbors': range_neighbors
-                })
+    total_batches = (n_query + batch_size - 1) // batch_size
 
-            # --- End Timer ---
-            total_time += (time.time() - t0_batch)
-            
+    try:
+        with torch.no_grad():
+            for i in tqdm(range(0, n_query, batch_size), desc="Search", total=total_batches):
+                end_idx = min(i + batch_size, n_query)
+                batch_q = X_query[i:end_idx]
+                current_batch_size = end_idx - i
+                
+                # --- Start Timer ---
+                t0_batch = time.time()
+                
+                # 1. Model Prediction (Forward Pass)
+                logits = model(batch_q)
+                probs = torch.softmax(logits, dim=1)
+                # Get top T bins
+                top_bins = torch.topk(probs, args.T, dim=1).indices.cpu().numpy()
+                
+                # Process each query in the batch
+                for j in range(current_batch_size):
+                    q_idx = i + j
+                    bins = top_bins[j]
+                    
+                    # 2. Candidate Collection
+                    candidates = []
+                    for b in bins:
+                        if b in inverted_file:
+                            candidates.extend(inverted_file[b])
+                    
+                    # Remove duplicates
+                    candidates = list(set(candidates))
+                    
+                    res_indices = []
+                    res_dists = []
+                    range_neighbors = []
+                    
+                    # 3. Exact Search on Candidates
+                    if len(candidates) > 0:
+                        cand_tensor = torch.tensor(candidates, dtype=torch.long, device=device)
+                        cand_vecs = X_data[cand_tensor]
+                        q_vec = batch_q[j].unsqueeze(0)
+                        
+                        metric_tag = getattr(args, 'metric', 'l2')
+                        
+                        if metric_tag == 'cosine':
+                            cand_vecs_norm = torch.nn.functional.normalize(cand_vecs, p=2, dim=1)
+                            q_vec_norm = torch.nn.functional.normalize(q_vec, p=2, dim=1)
+                            sim = torch.mm(q_vec_norm, cand_vecs_norm.t())
+                            dists_cand = (1.0 - sim).squeeze(0)
+                        else:
+                            # Compute distances to candidates
+                            dists_cand = torch.cdist(q_vec, cand_vecs).squeeze(0)
+                        
+                        # Find nearest N among candidates
+                        k_approx = min(args.N, len(candidates))
+                        vals, inds = torch.topk(dists_cand, k_approx, largest=False)
+                        
+                        res_indices = cand_tensor[inds].cpu().tolist()
+                        res_dists = vals.cpu().tolist()
+                        
+                        # 4. Range Search (Optional)
+                        if args.range:
+                            mask = dists_cand <= args.R
+                            range_inds = torch.nonzero(mask).squeeze(1)
+                            range_neighbors = cand_tensor[range_inds].cpu().tolist()
+                    
+                    results.append({
+                        'q_idx': q_idx,
+                        'indices': res_indices,
+                        'dists': res_dists,
+                        'range_neighbors': range_neighbors
+                    })
+
+                # --- End Timer ---
+                total_time += (time.time() - t0_batch)
+    except KeyboardInterrupt:
+        print("\n[Neural] Search Interrupted! Returning partial results...")
+    
+    return results, total_time
     return results, total_time
 
 def calculate_metrics(results, true_dists, true_indices, n_query, N):

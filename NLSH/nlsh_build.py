@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from sklearn.neighbors import NearestNeighbors
 from sklearn.model_selection import train_test_split
 
@@ -44,7 +45,7 @@ def main():
     else:
         method_str = "sklearn"
         
-    graph_cache_path = os.path.join("cache", "graphs", f"knn_{dataset_name}_{method_str}_k{args.knn}.npy")
+    graph_cache_path = os.path.join(os.path.dirname(__file__), "..", "cache", "graphs", f"knn_{dataset_name}_{method_str}_k{args.knn}.npy")
     
     indices = load_knn_graph(graph_cache_path)
     
@@ -200,7 +201,10 @@ def main():
         correct_train = 0
         total_train = 0
         
-        for batch_x, batch_y in train_loader:
+        # tqdm for batch progress
+        train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs}", leave=False)
+        
+        for batch_x, batch_y in train_pbar:
             optimizer.zero_grad()
             outputs = model(batch_x)
             loss = criterion(outputs, batch_y)
@@ -213,6 +217,9 @@ def main():
             _, predicted = torch.max(outputs.data, 1)
             total_train += batch_y.size(0)
             correct_train += (predicted == batch_y).sum().item()
+            
+            # Update pbar
+            train_pbar.set_postfix({'loss': f'{loss.item():.4f}'})
         
         avg_train_loss = total_loss / len(train_loader)
         train_acc = correct_train / total_train

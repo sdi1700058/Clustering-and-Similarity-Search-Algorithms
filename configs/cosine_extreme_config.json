@@ -1,0 +1,35 @@
+{
+    "metric": "cosine",
+    "range": false,
+    "R": 0.0,
+    "seed": 1,
+    "lsh": {
+        "k": 6,
+        "L": 10,
+        "w": 6.0
+    },
+    "hypercube": {
+        "kproj": 16,
+        "M": 10000,
+        "probes": 20,
+        "w": 6.0
+    },
+    "ivfflat": {
+        "kclusters": 500,
+        "nprobe": 50
+    },
+    "ivfpq": {
+        "kclusters": 500,
+        "nprobe": 50,
+        "M": 64,
+        "nbits": 8
+    },
+    "neural": {
+        "m": 1000,
+        "T": 100,
+        "k": 50,
+        "epochs": 30,
+        "layers": 5,
+        "nodes": 512
+    }
+}

@@ -45,8 +45,8 @@
 
 # Big data files
 # Keep large datasets local
-data/sift/*
-output/
-bin/
-val/truth_sift_N_21_R_0.000000.bin
-cache/graphs/knn_sift_base_sklearn_k50.npy
+#data/sift/*
+#output/
+#bin/
+#val/truth_sift_N_21_R_0.000000.bin
+#cache/graphs/knn_sift_base_sklearn_k50.npy
