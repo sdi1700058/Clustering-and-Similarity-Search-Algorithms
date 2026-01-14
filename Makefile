@@ -252,9 +252,9 @@ SEARCH_SCRIPT = Protein_Search/protein_search.py
 # 1. Generate Embeddings (Run Once) - Normalized for Cosine Similarity
 protein_embed:
 	@echo "[Makefile] Generating Database Embeddings (this may take a while)..."
-	python3 $(EMBED_SCRIPT) -i $(PROTEIN_DIR)/swissprot_50k.fasta -o $(PROTEIN_DIR)/protein_db.dat --normalize --batch_size 64
+	python3 $(EMBED_SCRIPT) -i $(PROTEIN_DIR)/swissprot_50k.fasta -o $(PROTEIN_DIR)/protein_db.dat --normalize --batch_size 16
 	@echo "[Makefile] Generating Query Embeddings..."
-	python3 $(EMBED_SCRIPT) -i $(PROTEIN_DIR)/targets.fasta -o $(PROTEIN_DIR)/targets_vectors.dat --normalize --batch_size 64
+	python3 $(EMBED_SCRIPT) -i $(PROTEIN_DIR)/targets.fasta -o $(PROTEIN_DIR)/targets_vectors.dat --normalize --batch_size 16
 
 # 2. Run Full Search Benchmark
 protein_search: $(TARGET)

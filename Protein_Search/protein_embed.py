@@ -74,27 +74,42 @@ def get_embeddings(sequences, tokenizer, model, device, batch_size=32):
             batch_seqs = valid_sequences[i : i + batch_size]
             
             # Tokenize
-            inputs = tokenizer(batch_seqs, return_tensors="pt", padding=True, truncation=True, max_length=1024)
-            inputs = {k: v.to(device) for k, v in inputs.items()}
+            try:
+                # Truncating at 1024 is still heavy for 8GB VRAM with ESM-2
+                # Reduced max_length to 512 for safety on smaller GPUs
+                inputs = tokenizer(batch_seqs, return_tensors="pt", padding=True, truncation=True, max_length=512)
+                inputs = {k: v.to(device) for k, v in inputs.items()}
+                
+                outputs = model(**inputs)
+                
+                # --- CORRECT Mean Pooling strategy ---
+                token_embeddings = outputs.last_hidden_state # [Batch, SeqLen, 320]
+                
+                # Attention mask: [Batch, SeqLen] -> [Batch, SeqLen, 1]
+                input_mask_expanded = inputs['attention_mask'].unsqueeze(-1).expand(token_embeddings.size()).float()
+                
+                # Sum embeddings ignoring padding
+                sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
+                
+                # Count tokens (avoid div by zero)
+                sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+                
+                # Mean
+                batch_embeddings = sum_embeddings / sum_mask
+                
+                all_embeddings.append(batch_embeddings.cpu().numpy())
+
+                # Explicit cleanup
+                del inputs, outputs, token_embeddings, sum_embeddings, batch_embeddings
+                torch.cuda.empty_cache()
             
-            outputs = model(**inputs)
-            
-            # --- CORRECT Mean Pooling strategy ---
-            token_embeddings = outputs.last_hidden_state # [Batch, SeqLen, 320]
-            
-            # Attention mask: [Batch, SeqLen] -> [Batch, SeqLen, 1]
-            input_mask_expanded = inputs['attention_mask'].unsqueeze(-1).expand(token_embeddings.size()).float()
-            
-            # Sum embeddings ignoring padding
-            sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
-            
-            # Count tokens (avoid div by zero)
-            sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-            
-            # Mean
-            batch_embeddings = sum_embeddings / sum_mask
-            
-            all_embeddings.append(batch_embeddings.cpu().numpy())
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    print(f"\n[Error] OOM at batch {i}. Try reducing --batch_size further.")
+                    torch.cuda.empty_cache()
+                    sys.exit(1)
+                else:
+                    raise e
             
     if all_embeddings:
         return np.vstack(all_embeddings)
