@@ -1,4 +1,5 @@
 {
+    "metric": "cosine",
     "range": false,
     "R": 0.0,
     "seed": 1,

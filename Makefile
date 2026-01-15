@@ -261,11 +261,11 @@ protein_search: $(TARGET)
 	@echo "[Makefile] Running Protein Search Pipeline..."
 	@mkdir -p output/protein
 	python3 $(SEARCH_SCRIPT) \
-		-d $(PROTEIN_DIR)/protein_db_norm.npy \
-		-q $(PROTEIN_DIR)/targets_vectors_norm.npy \
+		-d $(PROTEIN_DIR)/protein_db.dat \
+		-q $(PROTEIN_DIR)/targets_vectors.dat \
 		-db_fasta $(PROTEIN_DIR)/swissprot_50k.fasta \
 		-q_fasta $(PROTEIN_DIR)/targets.fasta \
-		-pfam $(PROTEIN_DIR)/targets.pfam_map.tsv \
 		-o output/protein/final_report.txt \
+		-config configs/protein_cosine.json \
 		-method all \
 		-N 50

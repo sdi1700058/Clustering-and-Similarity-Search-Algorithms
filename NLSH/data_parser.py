@@ -152,6 +152,7 @@ def build_parser():
     parser.add_argument("--cpp_bin", type=str, default="../bin/search", help="Path to C++ executable")
     parser.add_argument("--cpp_algo", type=str, default="brute", choices=["brute", "lsh", "hypercube", "ivfflat", "ivfpq"], 
                         help="Algorithm to use if running C++ subprocess")
+    parser.add_argument("--metric", type=str, default="l2", choices=["l2", "cosine"], help="Distance metric for graph construction")
     
     # IVFFlat specific arguments for graph construction
     parser.add_argument("--kclusters", type=int, default=50, help="Number of clusters for IVFFlat")

@@ -2,417 +2,359 @@ import argparse
 import os
 import sys
 import subprocess
-import numpy as np
-import time
 import re
+import time
 import json
+import numpy as np
 
-# Add parent dir to path to find NLSH and bin
+# --- Configuration ---
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.append(ROOT_DIR)
-
-# --- CONFIGURATION ---
 DATA_DIR = os.path.join(ROOT_DIR, "data", "protein")
-BLAST_DB_DIR = os.path.join(DATA_DIR, "blast_db")
-OUTPUT_BASE = os.path.join(ROOT_DIR, "output", "protein")
-FIG_DEST = os.path.join(OUTPUT_BASE, "figures")
+BLAST_DB = os.path.join(DATA_DIR, "blast_db", "protein_swissprot")
+OUTPUT_DIR = os.path.join(ROOT_DIR, "output", "protein")
+BIN_DIR = os.path.join(ROOT_DIR, "bin")
 
-# Ensure Dirs match
-for d in [DATA_DIR, BLAST_DB_DIR, OUTPUT_BASE, FIG_DEST]:
-    os.makedirs(d, exist_ok=True)
+# Defaults - will be overridden by config file
+PARAMS = {
+    "lsh":       {"k": 4, "L": 5, "w": 4.0},
+    "hypercube": {"kproj": 14, "w": 4.0, "M": 10, "probes": 2},
+    "ivfflat":   {"kclusters": 50, "nprobe": 5},
+    "ivfpq":     {"kclusters": 50, "nprobe": 5, "M": 16, "nbits": 8},
+    "neural":    {"m": 100, "T": 10, "k": 10, "epochs": 10, "layers": 3, "nodes": 64, "lm": 1.0} 
+}
+# Global options from config
+GLOBAL_OPTS = {
+    "R": 0.0,
+    "range": False,
+    "seed": 1,
+    "metric": "l2"
+}
 
-CONFIG_FILE = os.path.join(ROOT_DIR, "protein_config.json")
+def load_ids(path):
+    if not os.path.exists(path): return []
+    with open(path, 'r') as f:
+        return [l.strip() for l in f]
 
-def load_config():
-    defaults = {
-        "lsh":       {"k": 6, "L": 8, "w": 4.0},
-        "hypercube": {"kproj": 12, "w": 4.0, "M": 5000, "probes": 2},
-        "ivfflat":   {"kclusters": 100, "nprobe": 5},
-        "ivfpq":     {"kclusters": 100, "nprobe": 5, "M": 16, "nbits": 8},
-        "neural":    {"m": 400, "T": 50, "k": 10, "epochs": 15, "layers": 3, "nodes": 128} 
-    }
+def run_blast_ground_truth(db_fasta, query_fasta, top_n):
+    """Runs BLASTp and returns a dict: QueryID -> {ids: Set, table: Dict[id, identity]}"""
+    os.makedirs(os.path.dirname(BLAST_DB), exist_ok=True)
+    out_file = os.path.join(OUTPUT_DIR, "blast_results.tsv")
     
-    # Merge nested common params from algorithm section to global defaults
-    # This allows config files to specify "metric" or "range" at top level OR inside algo sections
-    # However the script expects them as keys in 'defaults' if we just iterate items
-    # We refactor loop to support deep update if needed, but for now we follow the structure
-    
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, 'r') as f:
-                user_config = json.load(f)
-                
-                # Check for top-level keys like "metric", "range"
-                # If they exist, we must add them to 'defaults' so run_cpp_algo can see them
-                for key in ["metric", "range", "R", "seed"]:
-                    if key in user_config:
-                         # We store them in a dummy section or just attach to algo sections?
-                         # run_cpp_algo reads 'params' passed to it.
-                         # We iterate ALL methods. We should inject these common params into EACH method config.
-                         val = user_config[key]
-                         for algo in defaults:
-                             defaults[algo][key] = val
+    # 1. Make DB
+    if not os.path.exists(f"{BLAST_DB}.pin"):
+        print("[BLAST] Building Database...")
+        subprocess.run(["makeblastdb", "-in", db_fasta, "-dbtype", "prot", "-out", BLAST_DB], 
+                       check=True, stdout=subprocess.DEVNULL)
 
-                for k, v in user_config.items():
-                    if k in defaults and isinstance(v, dict):
-                         defaults[k].update(v)
-                        
-            print(f"[Config] Loaded configuration from {CONFIG_FILE}")
-        except Exception as e:
-            print(f"[Config] Error loading json: {e}. Using defaults.")
-    return defaults
-
-DEFAULTS = load_config()
-
-FINAL_STATS = []
-
-def get_unique_filename(base_path, name, ext=".txt"):
-    counter = 1
-    # Ensure directory exists
-    os.makedirs(base_path, exist_ok=True)
-    while True:
-        candidate = os.path.join(base_path, f"{name}_{counter}{ext}")
-        if not os.path.exists(candidate):
-            return candidate
-        counter += 1
-
-def write_fvecs(filename, data):
-    """Writes vectors to .fvecs format for C++ binary."""
-    data = np.ascontiguousarray(data, dtype=np.float32)
-    print(f"[IO] Writing {filename} ({len(data)} vectors)...")
-    n, d = data.shape
-    with open(filename, 'wb') as f:
-        for i in range(n):
-            f.write(np.array([d], dtype=np.int32).tobytes())
-            f.write(data[i].tobytes())
-
-def ensure_fvecs(npy_path):
-    """
-    Ensures a corresponding .fvecs file exists in the SAME directory.
-    Returns the path to the .fvecs file.
-    """
-    base_name = os.path.basename(npy_path)
-    # Remove .npy if present
-    if base_name.endswith(".npy"): 
-        base_name = base_name[:-4]
-    # Remove .dat if present
-    if base_name.endswith(".dat"): 
-        base_name = base_name[:-4]
-    
-    fvecs_name = f"{base_name}.fvecs"
-    fvecs_path = os.path.join(DATA_DIR, fvecs_name)
-
-    if os.path.exists(fvecs_path):
-        # Optional: Check timestamp if you want strictly fresh data, 
-        # but for large files invalidating cache is expensive. 
-        # Here we trust the existence.
-        print(f"[Cache] Found existing fvecs: {fvecs_path}")
-        return fvecs_path
-
-    print(f"[IO] Converting {npy_path} -> {fvecs_path}")
-    try:
-        data = np.load(npy_path, allow_pickle=True)
-    except:
-        print(f"[Error] Could not load {npy_path}")
-        sys.exit(1)
-
-    write_fvecs(fvecs_path, data)
-    return fvecs_path
-
-# --- BLAST ---
-def run_blast(db_fasta, query_fasta, top_n):
-    print("[BLAST] Preparing Ground Truth...")
-    
-    db_name = os.path.join(BLAST_DB_DIR, "protein_swissprot")
-    out_table = os.path.join(OUTPUT_BASE, "blast_results.tsv")
-
-    # 1. Make Blast DB if missing (checking .pin file)
-    if not os.path.exists(f"{db_name}.pin"):
-        cmd = ["makeblastdb", "-in", db_fasta, "-dbtype", "prot", "-out", db_name]
+    # 2. Run Search
+    if not os.path.exists(out_file):
+        print("[BLAST] Running Alignment (this may take time)...")
+        # outfmt 6: qseqid sseqid pident ...
+        cmd = ["blastp", "-query", query_fasta, "-db", BLAST_DB, 
+               "-out", out_file, "-outfmt", "6", "-evalue", "1.0", 
+               "-max_target_seqs", str(top_n * 5)] # Get more to filter down to N unique
         subprocess.run(cmd, check=True)
-    
-    # 2. Run BlastP
-    if not os.path.exists(out_table):
-        print("[BLAST] Running BlastP...")
-        cmd = [
-            "blastp", "-query", query_fasta, "-db", db_name,
-            "-out", out_table, "-outfmt", "6 qseqid sseqid score",
-            "-max_target_seqs", str(top_n)
-        ]
-        subprocess.run(cmd, check=True)
-    else:
-        print("[BLAST] Using existing blast_results.tsv")
 
-    # 3. Parse and return if needed (omitted for brevity if not strictly used by C++)
-    return {}
-
-# --- C++ RUNNER ---
-def run_cpp_algo(method, db_fvecs, q_fvecs, args):
-    out_dir = os.path.join(OUTPUT_BASE, method)
-    os.makedirs(out_dir, exist_ok=True)
-    
-    res_file = get_unique_filename(out_dir, f"{method}_res")
-    binary = os.path.join(ROOT_DIR, "bin", "search")
-
-    cmd = [
-        binary, "-algo", method,
-        "-d", db_fvecs, "-q", q_fvecs,
-        "-o", res_file, "-type", "protein",
-        "-N", str(args.N),
-        "-metric", "cosine" # Enforced for protein embeddings
-    ]
-    
-    # Add generic params
-    if method in DEFAULTS:
-        params = DEFAULTS[method]
-        for k, v in params.items():
-            cmd.extend([f"-{k}", str(v)])
-
-    print(f"\n--- Processing {method} ---")
-    print(f"[C++] Running {method} -> {os.path.basename(res_file)}")
-    try:
-        subprocess.run(cmd, check=True)
-        parse_ann_results(res_file, method_name=method)
-    except subprocess.CalledProcessError as e:
-        print(f"[Error] C++ {method} failed: {e}")
-
-# --- NEURAL RUNNER ---
-def run_neural(db_fvecs, q_fvecs, args):
-    out_dir = os.path.join(OUTPUT_BASE, "neural")
-    os.makedirs(out_dir, exist_ok=True)
-    res_file = get_unique_filename(out_dir, "neural_res")
-
-    # Smart Caching: Model Signature
-    neural_cfg = DEFAULTS["neural"]
-    signature = (f"neural_m{neural_cfg['m']}_k{neural_cfg['k']}"
-                 f"_ep{neural_cfg['epochs']}_L{neural_cfg['layers']}_n{neural_cfg['nodes']}")
-    
-    # Prefix for model files
-    cache_models = os.path.join(ROOT_DIR, "cache", "models")
-    os.makedirs(cache_models, exist_ok=True)
-    index_prefix = os.path.join(cache_models, signature)
-    
-    # The expected model file is usually {prefix}_model.pth
-    model_file = f"{index_prefix}_model.pth"
-    
-    build_needed = True
-    if os.path.exists(model_file):
-        print(f"[Neural] Found cached model: {model_file}")
-        print("[Neural] Skipping build (using cache).")
-        build_needed = False
-    
-    # 1. Train/Build (only if needed)
-    if build_needed:
-        print(f"[Neural] Building index with signature {signature}...")
-        build_script = os.path.join(ROOT_DIR, "NLSH", "nlsh_build.py")
-        cmd_build = [
-            "python3", build_script,
-            "-d", db_fvecs,
-            "-i", index_prefix,
-            "-type", "protein",
-            "--knn", str(neural_cfg["k"]),
-            "--m", str(neural_cfg["m"]),
-            "--epochs", str(neural_cfg["epochs"]),
-            "--layers", str(neural_cfg["layers"]),
-            "--nodes", str(neural_cfg["nodes"])
-        ]
-        subprocess.run(cmd_build, check=True)
-
-    # 2. Search
-    print("[Neural] Searching...")
-    search_script = os.path.join(ROOT_DIR, "NLSH", "nlsh_search.py")
-    cmd_search = [
-        "python3", search_script,
-        "-d", db_fvecs,
-        "-q", q_fvecs,
-        "-i", index_prefix,
-        "-o", res_file,
-        "-type", "protein",
-        "-N", str(args.N),
-        "-T", str(neural_cfg["T"]),
-        "-metric", "cosine"
-    ]
-    subprocess.run(cmd_search, check=True)
-    
-    # Move plots if any were generated in NLSH/fig
-    src_fig_dir = os.path.join(ROOT_DIR, "NLSH", "fig")
-    if os.path.exists(src_fig_dir):
-        move_count = 0
-        for f in os.listdir(src_fig_dir):
-            if f.endswith(".png"):
-                 # Only move if filename looks generated by us (skip subdirs)
-                 if os.path.isfile(os.path.join(src_fig_dir, f)):
-                     os.rename(os.path.join(src_fig_dir, f), os.path.join(FIG_DEST, f))
-                     move_count += 1
-        if move_count > 0:
-            print(f"[Neural] Moved {move_count} plots to {FIG_DEST}")
+    # 3. Parse
+    print("[BLAST] Parsing Results...")
+    gt = {}
+    with open(out_file, 'r') as f:
+        for line in f:
+            parts = line.split('\t')
+            if len(parts) < 3: continue
+            qid, sid, identity = parts[0], parts[1], float(parts[2])
             
-    parse_ann_results(res_file, method_name="Neural")
+            if qid not in gt: 
+                gt[qid] = []
+            
+            # Store tuple (sid, identity)
+            gt[qid].append((sid, identity))
 
-def notify_completion(msg="Task Completed"):
-    print('\a') # Beep
-    try:
-        if sys.platform.startswith('linux'):
-            # Using notify-send if available
-            subprocess.run(['notify-send', 'Protein Search', msg], stderr=subprocess.DEVNULL)
-    except: pass
+    # Keep Top-N unique per query
+    final_gt = {}
+    for qid, hits in gt.items():
+        # Hits are usually sorted by bitscore by blast, so just take unique top N
+        seen = set()
+        top_unique = []
+        for sid, ident in hits:
+            if sid not in seen:
+                seen.add(sid)
+                top_unique.append((sid, ident))
+            if len(top_unique) == top_n: break
+            
+        final_gt[qid] = {
+            "ids_set": set(h[0] for h in top_unique),
+            "ident_map": {h[0]: h[1] for h in top_unique}
+        }
+    return final_gt
 
-def parse_ann_results(filename, method_name):
-    """
-    Parses the output text file to extract Average AF, Recall, QPS.
-    Adds to FINAL_STATS for comparison table.
-    """
-    stats = {}
-    if not os.path.exists(filename):
-        return
+def run_method(method, args, db_fvecs, q_fvecs, metric="l2"):
+    res_path = os.path.join(OUTPUT_DIR, method, f"{method}_res.txt")
+    os.makedirs(os.path.dirname(res_path), exist_ok=True)
+    
+    print(f"[{method.upper()}] Running with {metric.upper()}...")
+    
+    # Global args preparation
+    range_str = "true" if GLOBAL_OPTS["range"] else "false"
 
-    with open(filename, 'r') as f:
-        content = f.read()
+    if method == "neural":
+        # Call Python Neural LSH
+        p = PARAMS["neural"]
+        # Append metric to filename to ensure model matches metric (e.g. protein_index_l2_model.pth)
+        idx_prefix = os.path.join(ROOT_DIR, "cache", "models", f"protein_index_{metric}")
         
-        # Regex parsing
-        # Support both ':' (C++ default) and '=' (Legacy/Alternative)
-        af = re.search(r"Average AF[:=]\s*([0-9.]+)", content)
-        if not af: af = re.search(r"AF[:=]\s*([0-9.]+)", content)
+        # Build if missing (calling nlsh_build.py)
+        if not os.path.exists(f"{idx_prefix}_model.pth"):
+             print(f"[{method.upper()}] Building Neural Index with {metric}...")
+             cmd = ["python3", os.path.join(ROOT_DIR, "NLSH", "nlsh_build.py"),
+                    "-d", db_fvecs, "-i", idx_prefix, "-type", "generic",
+                    "--m", str(p['m']), "--knn", str(p['k']), "--epochs", str(p['epochs']),
+                    "--nodes", str(p['nodes']), "--layers", str(p['layers']),
+                    "--metric", metric]
+             subprocess.run(cmd, check=True)
+
+        # Search (calling nlsh_search.py)
+        cmd = ["python3", os.path.join(ROOT_DIR, "NLSH", "nlsh_search.py"),
+               "-d", db_fvecs, "-q", q_fvecs, "-i", idx_prefix, "-o", res_path,
+               "-type", "generic", "-N", str(args.N), "-T", str(p['T']),
+               "-metric", metric]
+        # Note: Neural search internally uses cosine if model trained on it, but here we just pass data
+        # If your neural LSH script needs metric flag, add it here. 
+        # Assuming current nlsh_search.py uses L2/Cosine based on training or default.
+        subprocess.run(cmd, check=True)
         
-        rec = re.search(r"Recall@\d+[:=]\s*([0-9.]+)", content)
-        
-        qps = re.search(r"QPS[:=]\s*([0-9.]+)", content)
-        
-        if af: stats['AF'] = float(af.group(1))
-        if rec: stats['Recall'] = float(rec.group(1))
-        if qps: stats['QPS'] = float(qps.group(1))
-        
-    FINAL_STATS.append({
-        'Method': method_name,
-        'Recall': stats.get('Recall', 0.0),
-        'QPS': stats.get('QPS', 0.0),
-        'AF': stats.get('AF', 0.0),
-        'File': f"file://{os.path.abspath(filename)}"
-    })
-    
-    print(f"[Stats] {method_name} -> Recall: {stats.get('Recall', 0):.4f} | QPS: {stats.get('QPS', 0):.2f}")
-
-
-def wizard():
-    print("\n=== Protein Search Interactive Mode ===")
-    print("No arguments provided. Entering interactive mode.\n")
-    
-    args = argparse.Namespace()
-    
-    # Ask for Datasets (with defaults)
-    def ask(prompt, default):
-        val = input(f"{prompt} [default: {default}]: ")
-        return val.strip() if val.strip() else default
-
-    args.d = "data/protein/protein_db_norm.npy" # Fixed for now as per Makefile
-    args.q = "data/protein/targets_vectors_norm.npy"
-    
-    # Algorithms
-    print("\nSelect Algorithms to run (comma separated, or 'all')")
-    print(f"Available: {', '.join(DEFAULTS.keys())}")
-    algo_in = ask("Algorithms", "all")
-    args.method = algo_in
-    
-    # Params
-    while True:
-        try:
-            val = ask("Number of Neighbors (N)", "50")
-            args.N = int(val)
-            break
-        except ValueError:
-            print("[Error] Please enter a valid integer.")
-    
-    # Placeholders for integration 
-    args.db_fasta = "data/protein/swissprot_50k.fasta"
-    args.q_fasta = "data/protein/targets.fasta"
-    args.pfam = "data/protein/targets.pfam_map.tsv"
-    args.o = "output/protein/final_report.txt"
-    
-    return args
-
-def print_comparison_table():
-    if not FINAL_STATS: return
-    
-    print("\n" + "="*80)
-    print(f"{'ALGORITHM PERFORMANCE SUMMARY':^80}")
-    print("="*80)
-    print(f"{'METHOD':<15} | {'RECALL':<10} | {'QPS':<10} | {'AF':<10} | {'OUTPUT FILE'}")
-    print("-" * 80)
-    
-    # Sort by Recall descending
-    sorted_stats = sorted(FINAL_STATS, key=lambda x: x['Recall'], reverse=True)
-    
-    for s in sorted_stats:
-        print(f"{s['Method']:<15} | {s['Recall']:<10.4f} | {s['QPS']:<10.2f} | {s['AF']:<10.4f} | {s['File']}")
-    print("="*80 + "\n")
-
-# --- MAIN ---
-def main():
-    parser = argparse.ArgumentParser(description="Protein Similarity Search Benchmark")
-    parser.add_argument("-d", help="Database embeddings (.npy)")
-    parser.add_argument("-q", help="Query embeddings (.npy)")
-    parser.add_argument("-db_fasta", help="Database FASTA")
-    parser.add_argument("-q_fasta", help="Query FASTA")
-    parser.add_argument("-pfam", help="Pfam mapping")
-    parser.add_argument("-o", help="Output report")
-    parser.add_argument("-method", default="all", help="all, or comma-separated: lsh,hypercube,ivfflat,ivfpq,neural")
-    parser.add_argument("-N", type=int, default=50, help="Number of neighbors")
-    
-    # Only parse args if command line arguments are present, otherwise run wizard
-    if len(sys.argv) == 1:
-        args = wizard()
     else:
-        args = parser.parse_args()
+        # Call C++ Binary ("search")
+        binary = os.path.join(BIN_DIR, "search")
+        p = PARAMS[method]
         
-        # If args are absent in CLI mode but not Wizard, apply defaults for simplicity if allowed
-        if not args.d: args.d = "data/protein/protein_db_norm.npy"
-        if not args.q: args.q = "data/protein/targets_vectors_norm.npy"
+        cmd = [binary, "-algo", method, "-d", db_fvecs, "-q", q_fvecs, "-o", res_path, 
+               "-type", "protein", "-N", str(args.N), "-threads", "1", "-metric", metric,
+               "-R", str(GLOBAL_OPTS["R"]), "-range", range_str, "-seed", str(GLOBAL_OPTS["seed"])] 
 
-    # Integrity Check
-    if not os.path.exists(args.d) or not os.path.exists(args.q):
-        print(f"[Error] Input files not found:\n  DB: {args.d}\n  Query: {args.q}\nRun 'make protein_embed' first.")
+        # Map params to CLI args
+        if method == "lsh":
+            cmd.extend(["-k", str(p['k']), "-L", str(p['L']), "-w", str(p['w'])])
+        elif method == "hypercube":
+            cmd.extend(["-kproj", str(p['kproj']), "-M", str(p['M']), "-probes", str(p['probes']), "-w", str(p['w'])])
+        elif method == "ivfflat":
+            cmd.extend(["-kclusters", str(p['kclusters']), "-nprobe", str(p['nprobe'])])
+        elif method == "ivfpq":
+            # FIXED: args_parser.cpp expects -M and -nbits, not -pq_M / -pq_nbits
+            cmd.extend(["-kclusters", str(p['kclusters']), "-nprobe", str(p['nprobe']), 
+                        "-M", str(p['M']), "-nbits", str(p['nbits'])])
+        
+        # Capture output may be printed to stdout, but result_writer saves to res_path
+        subprocess.run(cmd, check=True)
+        
+    return res_path
+
+def parse_ann(filepath, db_ids, q_ids):
+    """Parses output. Maps Index -> Protein String ID."""
+    results = {}
+    metrics = {"qps": 0.0, "time": 0.0}
+    
+    if not os.path.exists(filepath): return metrics, results
+    
+    current_qid = None
+
+    with open(filepath, 'r') as f:
+        for line in f:
+            line = line.strip()
+            # Metrics (From Summary part of file)
+            if "QPS:" in line:
+                metrics["qps"] = float(line.split(":")[-1].strip())
+            # Sum approx time from metric calc later
+            if "tApproxAvg=" in line: # Or calculate manually from execution time
+                pass 
+            
+            # Results
+            if line.startswith("Query:"):
+                # Query: <ID> or Query: <Int Index>
+                q_val = line.split(":")[-1].strip()
+                if q_val.isdigit():
+                    idx = int(q_val)
+                    if idx < len(q_ids): current_qid = q_ids[idx]
+                else:
+                    current_qid = q_val
+                if current_qid: results[current_qid] = []
+                
+            elif line.startswith("Nearest neighbor") and current_qid:
+                # Nearest neighbor-1: <Int Index>
+                idx = int(line.split(":")[-1].strip())
+                if idx < len(db_ids):
+                    results[current_qid].append({"id": db_ids[idx], "dist": 0.0})
+            
+            elif line.startswith("distanceApproximate:") and current_qid and results[current_qid]:
+                dist = float(line.split(":")[-1].strip())
+                results[current_qid][-1]["dist"] = dist
+                
+    # Calculate Total Time and QPS manually if not parsed
+    # We will rely on execution loop timing for summary if file missing
+    return metrics, results
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", required=True, help="DB .npy file prefix (without extension if possible)")
+    parser.add_argument("-q", required=True, help="Query .npy file prefix")
+    parser.add_argument("-db_fasta", required=True)
+    parser.add_argument("-q_fasta", required=True)
+    parser.add_argument("-o", required=True, help="Report output file")
+    parser.add_argument("-method", default="all")
+    parser.add_argument("-N", type=int, default=50) 
+    parser.add_argument("-config", help="Path to JSON config file to override PARAMS", default=None)
+    args = parser.parse_args()
+
+    # --- 0. Load Configuration ---
+    active_metric = "l2"
+    
+    if args.config:
+        print(f"[Config] Loading parameters from {args.config}...")
+        try:
+            with open(args.config, 'r') as f:
+                config_json = json.load(f)
+                
+                # Global overrides
+                if "metric" in config_json:
+                    active_metric = config_json["metric"]
+                    GLOBAL_OPTS["metric"] = active_metric
+                    print(f"  > Metric set to: {active_metric}")
+                
+                # Check for R, range, seed in top level
+                for key in ["R", "range", "seed"]:
+                    if key in config_json:
+                        GLOBAL_OPTS[key] = config_json[key]
+                        print(f"  > Updated {key}: {GLOBAL_OPTS[key]}")
+
+                for algo_key, params_dict in config_json.items():
+                    if algo_key in PARAMS:
+                        PARAMS[algo_key].update(params_dict)
+                        print(f"  > Updated {algo_key}: {PARAMS[algo_key]}")
+        except Exception as e:
+            print(f"[Error] Failed to load config: {e}")
+            sys.exit(1)
+
+    # 1. File Sync (NPY <-> FVECS <-> IDS)
+    # Allow input as "data/protein/protein_db.npy" or just "data/protein/protein_db"
+    db_base = os.path.splitext(args.d)[0]
+    q_base = os.path.splitext(args.q)[0]
+    
+    # Python needs .npy (via implicit internal loading usually) but maps via _ids.txt
+    db_ids = load_ids(f"{db_base}_ids.txt")
+    q_ids = load_ids(f"{q_base}_ids.txt")
+    
+    # C++ needs .fvecs
+    db_fvecs = f"{db_base}.fvecs"
+    q_fvecs = f"{q_base}.fvecs"
+
+    if not db_ids or not q_ids:
+        print(f"[Error] ID mapping files missing ({db_base}_ids.txt). Run protein_embed.py first.")
         sys.exit(1)
 
-    try:
-        # 1. Convert/Ensure FVECS for C++
-        db_fvecs = ensure_fvecs(args.d)
-        q_fvecs  = ensure_fvecs(args.q)
+    # 2. Ground Truth
+    blast_gt = run_blast_ground_truth(args.db_fasta, args.q_fasta, args.N)
 
-        # 2. Ground Truth (BLAST)
-        # We can run it just to ensure metric/GT exists, 
-        # but pure C++ execution manages its own numeric ground truth via BruteForce.
-        # run_blast(args.db_fasta, args.q_fasta, args.N)
+    # 3. Execution
+    methods = ["lsh", "hypercube", "ivfflat", "ivfpq", "neural"] if args.method == "all" else args.method.split(",")
+    ann_results = {}
+    
+    for m in methods:
+        start_t = time.time()
+        path = run_method(m, args, db_fvecs, q_fvecs, active_metric)
+        total_t_sec = time.time() - start_t
+        
+        metrics, data = parse_ann(path, db_ids, q_ids)
+        
+        # Calculate Recall
+        recall_sum = 0
+        valid = 0
+        for qid, neighbors in data.items():
+            if qid in blast_gt:
+                ann_ids = set(n['id'] for n in neighbors[:args.N])
+                truth_ids = blast_gt[qid]["ids_set"]
+                
+                if not truth_ids: continue
+                
+                hits = len(ann_ids.intersection(truth_ids))
+                recall_sum += hits / len(truth_ids)
+                valid += 1
+        
+        avg_recall = recall_sum / valid if valid > 0 else 0
+        
+        # Approximate QPS if not in file
+        if metrics["qps"] == 0.0 and len(q_ids) > 0:
+            metrics["qps"] = len(q_ids) / total_t_sec if total_t_sec > 0 else 0
+            
+        # Approx time per query
+        metrics["time_pq"] = total_t_sec / len(q_ids) if len(q_ids) > 0 else 0
+        
+        ann_results[m] = {"metrics": metrics, "data": data, "recall": avg_recall}
 
-        print("\n[Benchmark] Starting execution...\n")
+    # 4. Report Generation
+    # Adjust filename if needed to respect metric
+    if os.path.basename(args.o) == "final_report.txt" and active_metric != "l2":
+        base_dir = os.path.dirname(args.o)
+        args.o = os.path.join(base_dir, f"final_report_{active_metric}.txt")
+        print(f"[Info] Output filename adjusted to: {args.o}")
 
-        methods = []
-        if args.method == "all":
-            methods = list(DEFAULTS.keys())
-        else:
-            methods = args.method.split(",")
-
-        # 3. Execute Algorithms
+    print(f"\n[Report] Generating {args.o}...")
+    with open(args.o, 'w') as f:
+        f.write("Protein Homology Search Report\n")
+        f.write("==============================\n\n")
+        
+        f.write(f"[1] Summary Comparison (Ground Truth: BLAST, N={args.N})\n")
+        f.write("-" * 85 + "\n")
+        f.write(f"{'Method':<15} | {'Time/query (s)':<15} | {'QPS':<10} | {'Recall@N':<10}\n")
+        f.write("-" * 85 + "\n")
+        
         for m in methods:
-            m = m.strip()
-            if m == "neural":
-                run_neural(db_fvecs, q_fvecs, args)
-            elif m in ["lsh", "hypercube", "ivfflat", "ivfpq"]:
-                run_cpp_algo(m, db_fvecs, q_fvecs, args)
-            else:
-                print(f"[Warning] Unknown method: {m}")
+            stats = ann_results[m]
+            f.write(f"{m.upper():<15} | {stats['metrics']['time_pq']:<15.4f} | {stats['metrics']['qps']:<10.1f} | {stats['recall']:<10.4f}\n")
+        
+        f.write(f"{'BLAST (Ref)':<15} | {'-':<15} | {'-':<10} | {'1.0000'}\n")
+        f.write("-" * 85 + "\n\n")
 
-        # 4. Finalize
-        print_comparison_table()
-        notify_completion("Benchmark Finished Successfully")
-
-    except KeyboardInterrupt:
-        print("\n\n[INFO] Interrupted by user. Exiting...")
-        print_comparison_table() # Show what we got so far
-        sys.exit(0)
-    except Exception as e:
-        print(f"\n[ERROR] Unexpected error: {e}")
-        # import traceback; traceback.print_exc() # Uncomment for debug
-        sys.exit(1)
+        f.write(f"[2] Detailed Top-N Analysis (All Queries)\n")
+        
+        # Analyze all queries that have ground truth (or all queries if GT not strict)
+        valid_queries = [qid for qid in q_ids if qid in blast_gt]
+        
+        for qid in valid_queries:
+            blast_info = blast_gt[qid]
+            f.write(f"\nQUERY PROTEIN: {qid}\n")
+            
+            for m in methods:
+                f.write(f"\nMethod: {m.upper()}\n")
+                f.write("-" * 115 + "\n")
+                f.write(f"{'Rank':<5} | {'Neighbor ID':<25} | {'L2 Dist':<10} | {'BLAST %':<8} | {'In BLAST Top-N?':<18} | {'Bio Comment'}\n")
+                f.write("-" * 115 + "\n")
+                
+                neighbors = ann_results[m]["data"].get(qid, []) 
+                # Ensure we respect N
+                display_neighbors = neighbors[:args.N] if neighbors else []
+                
+                for i, n in enumerate(display_neighbors):
+                    nid = n['id']
+                    dist = n['dist']
+                    in_blast = nid in blast_info["ids_set"]
+                    pident = blast_info["ident_map"].get(nid, 0.0)
+                    
+                    comment = ""
+                    in_blast_str = "Yes" if in_blast else "No"
+                    
+                    if in_blast:
+                        if pident < 30.0:
+                            comment = "Remote Homolog (Twilight Zone)"
+                        else:
+                            comment = "Known Homolog"
+                    else:
+                        if dist < 0.2: 
+                            comment = "Novel Candidate?"
+                        else:
+                            comment = "Likely False Positive"
+                    
+                    f.write(f"{i+1:<5} | {nid:<25} | {dist:<10.4f} | {pident:<8.1f} | {in_blast_str:<18} | {comment}\n")
+            f.write("=" * 115 + "\n")
 
 if __name__ == "__main__":
     main()

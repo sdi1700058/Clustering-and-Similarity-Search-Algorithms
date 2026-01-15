@@ -45,7 +45,8 @@ def main():
     else:
         method_str = "sklearn"
         
-    graph_cache_path = os.path.join(os.path.dirname(__file__), "..", "cache", "graphs", f"knn_{dataset_name}_{method_str}_k{args.knn}.npy")
+    metric_tag = getattr(args, 'metric', 'l2')
+    graph_cache_path = os.path.join(os.path.dirname(__file__), "..", "cache", "graphs", f"knn_{dataset_name}_{method_str}_k{args.knn}_{metric_tag}.npy")
     
     indices = load_knn_graph(graph_cache_path)
     
@@ -55,7 +56,10 @@ def main():
         
         if args.graph_method == "sklearn":
             # We need k+1 because the first neighbor of a point in the training set is itself (dist=0)
-            nbrs = NearestNeighbors(n_neighbors=args.knn + 1, algorithm='brute', metric='euclidean', n_jobs=-1)
+            # Map 'l2' -> 'euclidean' for sklearn compatibility
+            sk_metric = 'euclidean' if args.metric == 'l2' else 'cosine'
+            
+            nbrs = NearestNeighbors(n_neighbors=args.knn + 1, algorithm='brute', metric=sk_metric, n_jobs=-1)
             nbrs.fit(X_train_np)
             _, raw_indices = nbrs.kneighbors(X_train_np)
             # Remove the first column (self-loop)
@@ -87,7 +91,7 @@ def main():
                 "-o", temp_output,
                 "-type", args.type,
                 "-N", str(k_req),
-                "-metric", "l2",       # Explicitly set metric
+                "-metric", args.metric,       # Use argument metric
                 "-range", "false",     # Disable range search for graph construction
                 "-R", "0.0"
             ]
