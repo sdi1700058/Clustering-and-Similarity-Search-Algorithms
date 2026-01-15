@@ -30,6 +30,21 @@ GLOBAL_OPTS = {
     "metric": "l2"
 }
 
+def get_unique_filename(filepath):
+    """
+    If filepath exists, appends _1, _2, etc. until a unique name is found.
+    """
+    if not os.path.exists(filepath):
+        return filepath
+    
+    base, ext = os.path.splitext(filepath)
+    counter = 1
+    while True:
+        new_path = f"{base}_{counter}{ext}"
+        if not os.path.exists(new_path):
+            return new_path
+        counter += 1
+
 def load_ids(path):
     if not os.path.exists(path): return []
     with open(path, 'r') as f:
@@ -292,15 +307,31 @@ def main():
 
     # 4. Report Generation
     # Adjust filename if needed to respect metric
-    if os.path.basename(args.o) == "final_report.txt" and active_metric != "l2":
+    if "final_report.txt" in os.path.basename(args.o) and active_metric != "l2":
         base_dir = os.path.dirname(args.o)
         args.o = os.path.join(base_dir, f"final_report_{active_metric}.txt")
-        print(f"[Info] Output filename adjusted to: {args.o}")
+
+    # Ensure unique filename to prevent overwrites
+    args.o = get_unique_filename(args.o)
+    print(f"[Info] Final Output Report: {args.o}")
 
     print(f"\n[Report] Generating {args.o}...")
     with open(args.o, 'w') as f:
         f.write("Protein Homology Search Report\n")
         f.write("==============================\n\n")
+
+        # --- Configuration Header ---
+        f.write("[0] Configuration Parameters\n")
+        f.write("-" * 85 + "\n")
+        f.write(f"Metric: {active_metric}\n")
+        f.write(f"Global Seed: {GLOBAL_OPTS.get('seed', 1)}\n")
+        f.write(f"Range Search: {GLOBAL_OPTS.get('range', False)} (R={GLOBAL_OPTS.get('R', 0.0)})\n")
+        f.write("\nAlgorithm Parameters:\n")
+        for m in methods:
+            if m in PARAMS:
+                params_str = ", ".join([f"{k}={v}" for k,v in PARAMS[m].items()])
+                f.write(f"  - {m.upper():<10}: {params_str}\n")
+        f.write("-" * 85 + "\n\n")
         
         f.write(f"[1] Summary Comparison (Ground Truth: BLAST, N={args.N})\n")
         f.write("-" * 85 + "\n")
