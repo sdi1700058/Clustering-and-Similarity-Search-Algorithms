@@ -129,13 +129,18 @@ def run_method(method, args, db_fvecs, q_fvecs, metric="l2"):
              subprocess.run(cmd, check=True)
 
         # Search (calling nlsh_search.py)
+        # We must overwrite the file if it exists, to match the behavior of C++ algos
+        # and avoid "neural_res_1, _2" drift which causes us to read the wrong file.
+        if os.path.exists(res_path):
+            os.remove(res_path)
+
         cmd = ["python3", os.path.join(ROOT_DIR, "NLSH", "nlsh_search.py"),
                "-d", db_fvecs, "-q", q_fvecs, "-i", idx_prefix, "-o", res_path,
                "-type", "generic", "-N", str(args.N), "-T", str(p['T']),
                "-metric", metric]
-        # Note: Neural search internally uses cosine if model trained on it, but here we just pass data
-        # If your neural LSH script needs metric flag, add it here. 
-        # Assuming current nlsh_search.py uses L2/Cosine based on training or default.
+        
+        # We run check=True to ensure it finished successfully
+        # By deleting the file beforehand, nlsh_search.py will write to res_path exactly
         subprocess.run(cmd, check=True)
         
     else:
@@ -179,6 +184,8 @@ def parse_ann(filepath, db_ids, q_ids):
             # Metrics (From Summary part of file)
             if "QPS:" in line:
                 metrics["qps"] = float(line.split(":")[-1].strip())
+            if "Average AF:" in line:
+                metrics["af"] = float(line.split(":")[-1].strip())
             # Sum approx time from metric calc later
             if "tApproxAvg=" in line: # Or calculate manually from execution time
                 pass 
@@ -279,6 +286,13 @@ def main():
         total_t_sec = time.time() - start_t
         
         metrics, data = parse_ann(path, db_ids, q_ids)
+
+        # Archive result file to preserve history (rename with _1, _2 suffix)
+        if os.path.exists(path):
+            archive_path = get_unique_filename(path)
+            if archive_path != path:
+                print(f"[{m.upper()}] Archiving results to {os.path.basename(archive_path)}")
+                os.rename(path, archive_path)
         
         # Calculate Recall
         recall_sum = 0
@@ -334,16 +348,17 @@ def main():
         f.write("-" * 85 + "\n\n")
         
         f.write(f"[1] Summary Comparison (Ground Truth: BLAST, N={args.N})\n")
-        f.write("-" * 85 + "\n")
-        f.write(f"{'Method':<15} | {'Time/query (s)':<15} | {'QPS':<10} | {'Recall@N':<10}\n")
-        f.write("-" * 85 + "\n")
+        f.write("-" * 100 + "\n")
+        f.write(f"{'Method':<15} | {'Time/query (s)':<15} | {'QPS':<10} | {'Recall@N':<10} | {'Avg AF':<10}\n")
+        f.write("-" * 100 + "\n")
         
         for m in methods:
             stats = ann_results[m]
-            f.write(f"{m.upper():<15} | {stats['metrics']['time_pq']:<15.4f} | {stats['metrics']['qps']:<10.1f} | {stats['recall']:<10.4f}\n")
+            af = stats['metrics'].get('af', 0.0)
+            f.write(f"{m.upper():<15} | {stats['metrics']['time_pq']:<15.4f} | {stats['metrics']['qps']:<10.1f} | {stats['recall']:<10.4f} | {af:<10.4f}\n")
         
-        f.write(f"{'BLAST (Ref)':<15} | {'-':<15} | {'-':<10} | {'1.0000'}\n")
-        f.write("-" * 85 + "\n\n")
+        f.write(f"{'BLAST (Ref)':<15} | {'-':<15} | {'-':<10} | {'1.0000':<10} | {'1.0000':<10}\n")
+        f.write("-" * 100 + "\n\n")
 
         f.write(f"[2] Detailed Top-N Analysis (All Queries)\n")
         
