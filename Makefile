@@ -241,31 +241,107 @@ clean:
 	rm -f $(TARGET) search
 	rm -rf $(BUILD_DIR)
 
+
 # ==========================================
-# Protein Search Tasks
+# Protein Search
 # ==========================================
 
 PROTEIN_DIR = data/protein
 EMBED_SCRIPT = Protein_Search/protein_embed.py
 SEARCH_SCRIPT = Protein_Search/protein_search.py
+SWISSPROT = $(PROTEIN_DIR)/swissprot_50k.fasta
+TARGETS = $(PROTEIN_DIR)/targets.fasta
 
-# 1. Generate Embeddings (Run Once) - Normalized for Cosine Similarity
-protein_embed:
-	@echo "[Makefile] Generating Database Embeddings (this may take a while)..."
-	python3 $(EMBED_SCRIPT) -i $(PROTEIN_DIR)/swissprot_50k.fasta -o $(PROTEIN_DIR)/protein_db.dat --normalize --batch_size 16
-	@echo "[Makefile] Generating Query Embeddings..."
-	python3 $(EMBED_SCRIPT) -i $(PROTEIN_DIR)/targets.fasta -o $(PROTEIN_DIR)/targets_vectors.dat --normalize --batch_size 16
+# 0. Clean old embeddings to avoid confusion
+clean_protein_data:
+@echo "[Makefile] Cleaning protein embeddings..."
+rm -f $(PROTEIN_DIR)/protein_db_*.npy $(PROTEIN_DIR)/protein_db_*.fvecs $(PROTEIN_DIR)/protein_db_*_ids.txt
+rm -f $(PROTEIN_DIR)/protein_query_*.npy $(PROTEIN_DIR)/protein_query_*.fvecs $(PROTEIN_DIR)/protein_query_*_ids.txt
 
-# 2. Run Full Search Benchmark
-protein_search: $(TARGET)
-	@echo "[Makefile] Running Protein Search Pipeline..."
-	@mkdir -p output/protein
-	python3 $(SEARCH_SCRIPT) \
-		-d $(PROTEIN_DIR)/protein_db.dat \
-		-q $(PROTEIN_DIR)/targets_vectors.dat \
-		-db_fasta $(PROTEIN_DIR)/swissprot_50k.fasta \
-		-q_fasta $(PROTEIN_DIR)/targets.fasta \
-		-o output/protein/final_report.txt \
-		-config configs/protein_cosine.json \
-		-method all \
-		-N 50
+# --- Phase 1: L2 Experiments (Unnormalized Vectors) ---
+
+# 1.a Generate Unnormalized Embeddings
+protein_data_l2:
+	@echo "[Data] Generating UNNORMALIZED protein embeddings for L2..."
+	python3 $(P_EMBED) -i $(P_DIR)/swissprot_50k.fasta -o $(P_DIR)/protein_db.npy 
+	python3 $(P_EMBED) -i $(P_DIR)/targets.fasta -o $(P_DIR)/targets_vectors.npy
+
+# 1.b Individual L2 Experiments (Cleans Neural Cache before run to force rebuild)
+protein_l2_fast: $(TARGET)
+	@echo "[Exp] Running L2 FAST..."
+	@rm -f $(CACHE_IDX)/protein_index_l2_model.pth $(CACHE_IDX)/protein_index_l2_index.pkl
+	python3 $(P_SEARCH) -d $(P_DIR)/protein_db.npy -q $(P_DIR)/targets_vectors.npy \
+		-db_fasta $(P_DIR)/swissprot_50k.fasta -q_fasta $(P_DIR)/targets.fasta \
+		-config configs/l2_fast_config.json -o output/protein/report_l2_fast.txt
+
+protein_l2_balanced: $(TARGET)
+	@echo "[Exp] Running L2 BALANCED..."
+	@rm -f $(CACHE_IDX)/protein_index_l2_model.pth $(CACHE_IDX)/protein_index_l2_index.pkl
+	python3 $(P_SEARCH) -d $(P_DIR)/protein_db.npy -q $(P_DIR)/targets_vectors.npy \
+		-db_fasta $(P_DIR)/swissprot_50k.fasta -q_fasta $(P_DIR)/targets.fasta \
+		-config configs/l2_balanced_config.json -o output/protein/report_l2_balanced.txt
+
+protein_l2_accurate: $(TARGET)
+	@echo "[Exp] Running L2 ACCURATE..."
+	@rm -f $(CACHE_IDX)/protein_index_l2_model.pth $(CACHE_IDX)/protein_index_l2_index.pkl
+	python3 $(P_SEARCH) -d $(P_DIR)/protein_db.npy -q $(P_DIR)/targets_vectors.npy \
+		-db_fasta $(P_DIR)/swissprot_50k.fasta -q_fasta $(P_DIR)/targets.fasta \
+		-config configs/l2_accurate_config.json -o output/protein/report_l2_accurate.txt
+
+protein_l2_extreme: $(TARGET)
+	@echo "[Exp] Running L2 EXTREME..."
+	@rm -f $(CACHE_IDX)/protein_index_l2_model.pth $(CACHE_IDX)/protein_index_l2_index.pkl
+	python3 $(P_SEARCH) -d $(P_DIR)/protein_db.npy -q $(P_DIR)/targets_vectors.npy \
+		-db_fasta $(P_DIR)/swissprot_50k.fasta -q_fasta $(P_DIR)/targets.fasta \
+		-config configs/l2_extreme_config.json -o output/protein/report_l2_extreme.txt
+
+# 1.c Run All L2 (Sequence: Data -> Fast -> Balanced -> Accurate -> Extreme)
+run_protein_l2_all: protein_data_l2
+	$(MAKE) protein_l2_fast
+	$(MAKE) protein_l2_balanced
+	$(MAKE) protein_l2_accurate
+	$(MAKE) protein_l2_extreme
+
+# --- Phase 2: Cosine Experiments (Normalized Vectors) ---
+
+# 2.a Generate Normalized Embeddings
+protein_data_cosine:
+	@echo "[Data] Generating NORMALIZED protein embeddings for Cosine..."
+	python3 $(P_EMBED) -i $(P_DIR)/swissprot_50k.fasta -o $(P_DIR)/protein_db.npy --normalize
+	python3 $(P_EMBED) -i $(P_DIR)/targets.fasta -o $(P_DIR)/targets_vectors.npy --normalize
+
+# 2.b Individual Cosine Experiments
+protein_cosine_fast: $(TARGET)
+	@echo "[Exp] Running Cosine FAST..."
+	@rm -f $(CACHE_IDX)/protein_index_cosine_model.pth $(CACHE_IDX)/protein_index_cosine_index.pkl
+	python3 $(P_SEARCH) -d $(P_DIR)/protein_db.npy -q $(P_DIR)/targets_vectors.npy \
+		-db_fasta $(P_DIR)/swissprot_50k.fasta -q_fasta $(P_DIR)/targets.fasta \
+		-config configs/cosine_fast_config.json -o output/protein/report_cosine_fast.txt
+
+protein_cosine_balanced: $(TARGET)
+	@echo "[Exp] Running Cosine BALANCED..."
+	@rm -f $(CACHE_IDX)/protein_index_cosine_model.pth $(CACHE_IDX)/protein_index_cosine_index.pkl
+	python3 $(P_SEARCH) -d $(P_DIR)/protein_db.npy -q $(P_DIR)/targets_vectors.npy \
+		-db_fasta $(P_DIR)/swissprot_50k.fasta -q_fasta $(P_DIR)/targets.fasta \
+		-config configs/cosine_balanced_config.json -o output/protein/report_cosine_balanced.txt
+
+protein_cosine_accurate: $(TARGET)
+	@echo "[Exp] Running Cosine ACCURATE..."
+	@rm -f $(CACHE_IDX)/protein_index_cosine_model.pth $(CACHE_IDX)/protein_index_cosine_index.pkl
+	python3 $(P_SEARCH) -d $(P_DIR)/protein_db.npy -q $(P_DIR)/targets_vectors.npy \
+		-db_fasta $(P_DIR)/swissprot_50k.fasta -q_fasta $(P_DIR)/targets.fasta \
+		-config configs/cosine_accurate_config.json -o output/protein/report_cosine_accurate.txt
+
+protein_cosine_extreme: $(TARGET)
+	@echo "[Exp] Running Cosine EXTREME..."
+	@rm -f $(CACHE_IDX)/protein_index_cosine_model.pth $(CACHE_IDX)/protein_index_cosine_index.pkl
+	python3 $(P_SEARCH) -d $(P_DIR)/protein_db.npy -q $(P_DIR)/targets_vectors.npy \
+		-db_fasta $(P_DIR)/swissprot_50k.fasta -q_fasta $(P_DIR)/targets.fasta \
+		-config configs/cosine_extreme_config.json -o output/protein/report_cosine_extreme.txt
+
+# 2.c Run All Cosine (Sequence: Data -> Fast -> Balanced -> Accurate -> Extreme)
+run_protein_cosine_all: protein_data_cosine
+    $(MAKE) protein_cosine_fast
+    $(MAKE) protein_cosine_balanced
+    $(MAKE) protein_cosine_accurate
+    $(MAKE) protein_cosine_extreme

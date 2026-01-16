@@ -269,3 +269,187 @@ mkdir -p data/sift && wget -P data/sift ftp://ftp.irisa.fr/local/texmex/corpus/s
 Σημειώσεις:
 - Τα Valgrind runs (`check_run_*`) στο Makefile είναι αργά.
 - Οι τελικές ρυθμίσεις (config summary) εκτυπώνονται αυτόματα από τον parser.
+
+## Remote Homolog Protein Search 
+
+Εκτός από τα τυπικά vectors (MNIST/SIFT), το framework υποστηρίζει αναζήτηση ομολογίας πρωτεϊνών χρησιμοποιώντας Neural Embeddings από το μοντέλο `ESM-2`. Η διαδικασία βασίζεται στη μετατροπή αλληλουχιών FASTA σε διανύσματα ($d=320$) και στην αναζήτηση γειτόνων με μετρικές L2 (Euclidean) ή Cosine Similarity.
+
+### Pipeline
+1.  **Embed:** Το `protein_embed.py` διαβάζει FASTA αρχεία και παράγει διανύσματα (`.npy` για Python, `.fvecs` για C++).
+2.  **Search:** Το `protein_search.py` λειτουργεί ως wrapper. Καλεί είτε το C++ executable (`search`) είτε το Python Neural module (`nlsh_search.py`) και συγκρίνει τα αποτελέσματα με το BLASTp (Ground Truth).
+
+### Build & Run
+
+Για την εκτέλεση της ροής εργασιών χρησιμοποιούμε τα παρακάτω targets.
+
+#### Βήμα 1: Δημιουργία Embeddings
+Πριν τρέξετε πειράματα, πρέπει να δημιουργήσετε τα διανύσματα από τα FASTA αρχεία.
+
+```bash
+# Για L2 Metric (Raw Embeddings)
+make protein_data_l2
+
+# Για Cosine Metric (L2-Normalized Embeddings)
+make protein_data_cosine
+```
+
+#### Βήμα 2: Εκτέλεση Πειραμάτων
+Τα πειράματα τρέχουν σε 4 configurations (`fast`, `balanced`, `accurate`, `extreme`) που ορίζονται στον φάκελο configs.
+
+**L2 Experiments:**
+```bash
+make protein_l2_fast        # Γρήγορη αναζήτηση (Config: l2_fast_config.json)
+make protein_l2_balanced    # Ισορροπημένη αναζήτηση
+make protein_l2_accurate    # Έμφαση στην ακρίβεια
+make protein_l2_extreme     # Πολύ υψηλή ακρίβεια (αργό)
+
+# Εκτέλεση όλων των L2 πειραμάτων σειριακά
+make run_protein_l2_all
+```
+
+**Cosine Experiments:**
+```bash
+make protein_cosine_fast
+make protein_cosine_balanced
+make protein_cosine_accurate
+make protein_cosine_extreme
+
+# Εκτέλεση όλων των Cosine πειραμάτων σειριακά
+make run_protein_cosine_all
+```
+
+### CLI Parameters
+
+Αν θέλετε να τρέξετε το script αναζήτησης χειροκίνητα (εκτός Makefile):
+
+```bash
+python3 Protein_Search/protein_search.py [OPTIONS]
+```
+
+- `-d`: Path prefix για τη βάση δεδομένων (χωρίς extension, π.χ. `data/protein/protein_db`).
+- `-q`: Path prefix για τα queries (χωρίς extension).
+- `-db_fasta`: Path στο αρχείο FASTA της βάσης (για BLAST Ground Truth).
+- `-q_fasta`: Path στο αρχείο FASTA των queries.
+- `-o`: Path για το αρχείο εξόδου (Report).
+- `-N`: Αριθμός γειτόνων (Default: 50).
+- `-method`: Αλγόριθμοι προς εκτέλεση (π.χ. `lsh,ivfflat` ή `all`).
+- `-config`: Path σε JSON αρχείο ρυθμίσεων (αντικαθιστά τα defaults).
+
+**Παράδειγμα:**
+```bash
+python3 Protein_Search/protein_search.py \
+  -d data/protein/protein_db \
+  -q data/protein/targets_vectors \
+  -db_fasta data/protein/swissprot_50k.fasta \
+  -q_fasta data/protein/targets.fasta \
+  -config configs/l2_balanced_config.json \
+  -o output/protein/manual_run.txt
+```
+
+#### Cleanup
+Για να διαγράψετε τα παραγόμενα αρχεία δεδομένων πρωτεϊνών:
+
+```bash
+make clean_protein_data
+```
+#### Editing Configuration Files
+Τα αρχεία ρυθμίσεων (`configs/*.json`) περιέχουν παραμέτρους για κάθε αλγόριθμο. Μπορείτε να τα επεξεργαστείτε για να προσαρμόσετε τις παραμέτρους των πειραμάτων.
+** Παραδειγμα αρχείου ρυθμίσεων (l2_balanced_config.json):**
+```json
+{
+  "metric": "l2",
+  "global_seed": 1,
+  "range_search": false,
+  "lsh": {
+    "k": 5,
+    "L": 8,
+    "w": 5.0
+  },
+  "hypercube": {
+    "kproj": 14,
+    "w": 5.0,
+    "M": 5000,
+    "probes": 10
+  },
+  "ivfflat": {
+    "kclusters": 200,
+    "nprobe": 20
+  },
+  "ivfpq": {
+    "kclusters": 200,
+    "nprobe": 20,
+    "M": 32,
+    "nbits": 8
+  },
+  "neural": {
+    "m": 400,
+    "T": 50,
+    "k": 20,
+    "epochs": 20,
+    "layers": 4,
+    "nodes": 256,
+    "lm": 1.0
+  }
+}
+```
+*Σημείωση: Διαβάστε παραπάνω για να δείτε τη λειτουργία των παραμέτρων που χρησιμοποιούμε στο αρχείο ρυθμίσεων.*
+
+### Output Format Example
+
+Το αρχείο αποτελεσμάτων παρέχει στατιστικά σύγκρισης με το BLAST και βιολογικό σχολιασμό των γειτόνων.
+
+```text
+Protein Homology Search Report
+==============================
+
+[0] Configuration Parameters
+-------------------------------------------------------------------------------------
+Metric: l2
+Global Seed: 1
+Range Search: False (R=0.0)
+
+Algorithm Parameters:
+  - LSH       : k=5, L=8, w=5.0
+  - HYPERCUBE : kproj=14, w=5.0, M=5000, probes=10
+  - IVFFLAT   : kclusters=200, nprobe=20
+  - IVFPQ     : kclusters=200, nprobe=20, M=32, nbits=8
+  - NEURAL    : m=400, T=50, k=20, epochs=20, layers=4, nodes=256, lm=1.0
+-------------------------------------------------------------------------------------
+
+[1] Summary Comparison (Ground Truth: BLAST, N=50)
+----------------------------------------------------------------------------------------------------
+Method          | Time/query (s)  | QPS        | Recall@N   | Avg AF    
+----------------------------------------------------------------------------------------------------
+LSH             | 0.6679          | 160.3      | 0.0267     | 1.5064    
+HYPERCUBE       | 0.0590          | 166.6      | 0.2200     | 1.0768    
+IVFFLAT         | 0.5091          | 227.6      | 0.2660     | 1.0000    
+IVFPQ           | 6.2638          | 164.5      | 0.2210     | 1.4131    
+NEURAL          | 151.3890        | 56.2       | 0.3113     | 1.0000    
+BLAST (Ref)     | -               | -          | 1.0000     | 1.0000    
+----------------------------------------------------------------------------------------------------
+
+[2] Detailed Top-N Analysis (All Queries)
+
+QUERY PROTEIN: A0A009I3Y5
+
+Method: LSH
+-------------------------------------------------------------------------------------------------------------------
+Rank  | Neighbor ID               | L2 Dist    | BLAST %  | In BLAST Top-N?    | Bio Comment
+-------------------------------------------------------------------------------------------------------------------
+1     | sp|Q1Q8I2|TPMT_PSYCK      | 2.0270     | 0.0      | No                 | Likely False Positive
+2     | sp|A1RP91|TRMA_SHESW      | 2.1295     | 0.0      | No                 | Likely False Positive
+3     | sp|P44509|Y093_HAEIN      | 2.1908     | 0.0      | No                 | Likely False Positive
+4     | sp|P45544|FRLR_ECOLI      | 2.2433     | 0.0      | No                 | Likely False Positive
+5     | sp|Q4A180|DNAA_STAS1      | 2.3021     | 0.0      | No                 | Likely False Positive
+6     | sp|B4TNU5|WECF_SALSV      | 2.3056     | 0.0      | No                 | Likely False Positive
+7     | sp|Q9V3Z1|TRIB_DROME      | 2.3101     | 0.0      | No                 | Likely False Positive
+8     | sp|Q9SIZ4|Y2027_ARATH     | 2.3133     | 0.0      | No                 | Likely False Positive
+9     | sp|Q9ZDW2|UVRB_RICPR      | 2.3168     | 0.0      | No                 | Likely False Positive
+10    | sp|Q9FE20|PBS1_ARATH      | 2.3175     | 0.0      | No                 | Likely False Positive
+11    | sp|P45756|GSPA_ECOLI      | 2.3206     | 0.0      | No                 | Likely False Positive
+12    | sp|Q54R98|Y3301_DICDI     | 2.3297     | 0.0      | No                 | Likely False Positive
+13    | sp|Q5X5X1|HIS7_LEGPA      | 2.3298     | 0.0      | No                 | Likely False Positive
+14    | sp|P77439|PTFX1_ECOLI     | 2.3518     | 0.0      | No                 | Likely False Positive
+15    | sp|P44145|Y1266_HAEIN     | 2.3623     | 0.0      | No                 | Likely False Positive
+...
+```
