@@ -160,7 +160,6 @@ def run_method(method, args, db_fvecs, q_fvecs, metric="l2"):
         elif method == "ivfflat":
             cmd.extend(["-kclusters", str(p['kclusters']), "-nprobe", str(p['nprobe'])])
         elif method == "ivfpq":
-            # FIXED: args_parser.cpp expects -M and -nbits, not -pq_M / -pq_nbits
             cmd.extend(["-kclusters", str(p['kclusters']), "-nprobe", str(p['nprobe']), 
                         "-M", str(p['M']), "-nbits", str(p['nbits'])])
         
@@ -210,9 +209,6 @@ def parse_ann(filepath, db_ids, q_ids):
             elif line.startswith("distanceApproximate:") and current_qid and results[current_qid]:
                 dist = float(line.split(":")[-1].strip())
                 results[current_qid][-1]["dist"] = dist
-                
-    # Calculate Total Time and QPS manually if not parsed
-    # We will rely on execution loop timing for summary if file missing
     return metrics, results
 
 def main():
@@ -261,7 +257,7 @@ def main():
     db_base = os.path.splitext(args.d)[0]
     q_base = os.path.splitext(args.q)[0]
     
-    # Python needs .npy (via implicit internal loading usually) but maps via _ids.txt
+    # Python needs .npy but maps via _ids.txt
     db_ids = load_ids(f"{db_base}_ids.txt")
     q_ids = load_ids(f"{q_base}_ids.txt")
     

@@ -1,8 +1,3 @@
-"""
-protein_embed.py
-
-Generates protein embeddings using ESM-2 (facebook/esm2_t6_8M_UR50D).
-"""
 import sys
 import os
 import argparse
@@ -96,7 +91,7 @@ def main():
     tokenizer, model = load_model(device)
     embeddings = get_embeddings(sequences, tokenizer, model, device, args.batch_size)
 
-    # 3. Normalize (Crucial for Cosine Similarity via L2/Euclidean indices)
+    # 3. Normalize (for Cosine Similarity via L2/Euclidean indices)
     if args.normalize:
         print("[Preprocessing] L2-normalizing...")
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)

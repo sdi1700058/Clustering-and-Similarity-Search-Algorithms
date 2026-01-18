@@ -66,6 +66,8 @@
 *   **BLAST Identity:** 28.8% (Remote Homolog - Twilight Zone).
 *   **Πηγή:** `report_l2_accurate_1.txt`
 *   **Βιολογική Ερμηνεία:** Το μοντέλο συνδέει μια πρωτεΐνη από βακτήριο (*A. baumannii*) με μια πρωτεΐνη φυτού (*Arabidopsis thaliana*), παρόλο που η αλληλουχία έχει αλλοιωθεί σημαντικά (28% ομοιότητα).
+*  **Quote από το UniProt:** - Query: "Function: The pyruvate dehydrogenase complex catalyzes the overall conversion of pyruvate to acetyl-CoA and CO2. It contains multiple copies of three enzymatic components: pyruvate dehydrogenase (E1), dihydrolipoamide acetyltransferase (E2) and lipoamide dehydrogenase (E3)." Link: https://www.uniprot.org/uniprotkb/A0A009IB02/entry
+- Neighbor: "Function: The pyruvate dehydrogenase complex catalyzes the overall conversion of pyruvate to acetyl-CoA and CO2. It contains multiple copies of three enzymatic components: pyruvate dehydrogenase (E1), dihydrolipoamide acetyltransferase (E2) and lipoamide dehydrogenase (E3)." Link: https://www.uniprot.org/uniprotkb/Q9SQI8/entry
 
 #### Παράδειγμα 2: Query `A0A009HL96` (Response Regulator)
 *   **Περιγραφή:** Ρυθμιστής απόκρισης (Response Regulator) της οικογένειας OmpR/PhoB (Two-component system).
@@ -73,6 +75,9 @@
 *   **BLAST Identity:** 28.7% (Remote Homolog - Twilight Zone).
 *   **Πηγή:** `report_l2_accurate_1.txt`
 *   **Βιολογική Ερμηνεία:** Εδώ βλέπουμε δύο πρωτεΐνες που κάνουν την ίδια δουλειά (μεταγραφική ρύθμιση) σε διαφορετικούς οργανισμούς (*Acinetobacter* και *Streptococcus*). Το ενδιαφέρον είναι ότι παρά τη χαμηλή τους συγγένεια στο BLAST, μοιράζονται το ίδιο δομικό "κλειδί" για να πιάσουν το DNA (το μοτίβο Winged Helix-Turn-Helix).
+* **Quote από το UniProt:** 
+    - Query: "SubName: Full=Response regulator; Domains: Response regulatory, OmpR/PhoB-type; Family: OmpR/PhoB-type DNA-binding domain." Link: https://www.uniprot.org/uniprotkb/A0A009HL96/entry
+    - Neighbor: "Member of the two-component regulatory system LytR/LytS that probably regulates genes involved in cell wall metabolism." Link: https://www.uniprot.org/uniprotkb/Q8DVB7/entry
 
 #### Παράδειγμα 3: Query `A0A010Q3W2` (WD40 Repeat Protein)
 *   **Περιγραφή:** Πρωτεΐνη με επαναλήψεις WD40, εντοπισμένη στον πυρήνα/πυρηνίσκο.
@@ -80,6 +85,9 @@
 *   **BLAST Identity:** 23.4% (Remote Homolog - Twilight Zone).
 *   **Πηγή:** `report_cosine_accurate.txt`
 *   **Βιολογική Ερμηνεία:** Οι πρωτεΐνες WD40 σχηματίζουν μια δομή σαν έλικα (beta-propeller) που χρησιμεύει ως πλατφόρμα στήριξης. Η αλληλουχία τους αλλάζει πολύ εύκολα, αρκεί να κρατήσουν 2-3 αμινοξέα σταθερά για να μη καταρρεύσει η δομή. Το μοντέλο ESM-2 συνέδεσε έναν μύκητα με έναν νηματώδη (*C. elegans*), παρόλο που η ταυτότητα αλληλουχίας είναι εξαιρετικά χαμηλή (23.4%).
+* **Quote από το UniProt:** 
+    - Query: "SubName: Full=WD domain-containing protein; Domain: U3 small nucleolar RNA-associated protein 15 C-terminal; Family: WD repeat-containing protein." Link: https://www.uniprot.org/uniprotkb/A0A010Q3W2/entry
+    - Neighbor: "Together with wdr-20, binds to and stimulates the activity of the deubiquitinating enzyme usp-46, leading to deubiquitination and stabilization of the glr-1 glutamate receptor." Link: https://www.uniprot.org/uniprotkb/Q20059/entry
 
 #### Παράδειγμα 4: Query `A0A009HN45` (RapA Helicase)
 *   **Περιγραφή:** Ελικάση της οικογένειας SWI/SNF (RapA-like), εμπλέκεται στην ανακύκλωση της RNA πολυμεράσης.
@@ -87,7 +95,9 @@
 *   **BLAST Identity:** 28.6% (Remote Homolog - Twilight Zone).
 *   **Πηγή:** `report_cosine_accurate.txt`
 *   **Βιολογική Ερμηνεία:** Ουσιαστικά έχουμε το ίδιο ένζυμο (RapA) σε δύο διαφορετικά βακτήρια (*Acinetobacter* και *Vibrio*). Το γεγονός ότι το BLAST δίνει ομοιότητα κάτω από 30% δείχνει πόσο γρήγορα εξελίσσονται αυτοί οι οργανισμοί. To ESM-2 αναγνώρισε τη διατήρηση της δομής της ελικάσης, παρά τις πολλές μεταλλάξεις στην αλληλουχία.
-
+* **Quote από το UniProt:** 
+    - Query: "SubName: Full=DEAD/DEAH box helicase family protein; Domains: Helicase ATP-binding, Helicase C-terminal; Family: SNF2/RAD54 helicase family." Link: https://www.uniprot.org/uniprotkb/A0A009HN45/entry
+    - Neighbor: "Transcription regulator that activates transcription by stimulating RNA polymerase (RNAP) recycling in case of stress conditions such as supercoiled DNA or high salt concentrations." Link: https://www.uniprot.org/uniprotkb/A7MSB2/entry
 ---
 
 ## 4. Συζήτηση & Περιορισμοί
